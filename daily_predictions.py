@@ -48,7 +48,7 @@ target = "mv_target_clipped"
 competition_ids = [1]                    # 1 = Bundesliga, 2 = 2. Bundesliga, 3 = La Liga
 league_name = "Buli -Nur Aktive Manager-"  # Name of your league, exact match
 start_budget = 50_000_000               # Starting budget of your league
-email = os.getenv("cirex2312@gmail.com")          # Recipient email (can be same as EMAIL_USER)
+email = os.getenv("EMAIL_USER")          # Recipient email (can be same as EMAIL_USER)
 
 # ---------------------------------------------------
 
