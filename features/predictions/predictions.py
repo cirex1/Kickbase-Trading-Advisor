@@ -1,106 +1,103 @@
-from kickbase_api.user_management import get_players_in_squad
-from datetime import datetime, timedelta
-from kickbase_api.league_data import (
-    get_leagues_infos,
-    get_players_on_market,
-)
-from zoneinfo import ZoneInfo
-import pandas as pd
-import numpy as np
-
-def live_data_predictions(today_df, model, features):
-    """Make live data predictions for today_df using the trained model"""
-
-    # Set features and copy df
-    today_df_features = today_df[features]
-    today_df_results = today_df.copy()
-
-    # Predict mv_target
-    today_df_results["predicted_mv_target"] = np.round(model.predict(today_df_features), 2)
-
-    # Sort by predicted_mv_target descending
-    today_df_results = today_df_results.sort_values("predicted_mv_target", ascending=False)
-
-    # Filter date to today or yesterday if before 22:15, because mv is updated around 22:15
-    now = datetime.now(ZoneInfo("Europe/Berlin"))
-    cutoff_time = now.replace(hour=22, minute=15, second=0, microsecond=0)
-    date = (now - timedelta(days=1)) if now <= cutoff_time else now
-    date = date.date()
-
-    # Drop rows where NaN mv
-    today_df_results = today_df_results.dropna(subset=["mv"])
-
-    # Keep only relevant columns
-    today_df_results = today_df_results[["player_id", "first_name", "last_name", "position", "team_name", "date", "mv_change_1d", "mv_trend_1d", "mv", "predicted_mv_target"]]
-
-    return today_df_results
-
-
 def join_current_squad(token, league_id, today_df_results):
+    from kickbase_api.user_management import get_players_in_squad
+    import numpy as np
+    import pandas as pd
+
     squad_players = get_players_in_squad(token, league_id)
+    squad_df = pd.DataFrame(squad_players.get("it", []))
 
-    squad_df = pd.DataFrame(squad_players["it"])
+    # Join: today_df (player_id)  ↔︎  squad_df ("i")
+    squad_df = pd.merge(today_df_results, squad_df, left_on="player_id", right_on="i", how="inner")
 
-    # Join squad_df ("i") with today_df ("player_id")
-    squad_df = (
-        pd.merge(today_df_results, squad_df, left_on="player_id", right_on="i")
-        .drop(columns=["i"])
-    )
+    # --- Spalten vereinheitlichen/absichern ---
+    cols = squad_df.columns
 
-    # Rename prob to s_11_prob for better understanding
-    squad_df = squad_df.rename(columns={"prob": "s_11_prob"})
+    # Marktwert vereinheitlichen
+    if "mv_x" in cols:
+        squad_df = squad_df.rename(columns={"mv_x": "mv"})
+    elif "mv" not in cols:
+        squad_df["mv"] = np.nan
 
-    # Rename mv_change_1d to mv_change_yesterday for better understanding
-    squad_df = squad_df.rename(columns={"mv_change_1d": "mv_change_yesterday"})
+    # Startelf-Proba vereinheitlichen
+    if "prob" in cols:
+        squad_df = squad_df.rename(columns={"prob": "s_11_prob"})
+    elif "s11_prob" in cols:
+        squad_df = squad_df.rename(columns={"s11_prob": "s_11_prob"})
+    if "s_11_prob" not in squad_df.columns:
+        squad_df["s_11_prob"] = np.nan  # falls gar nicht vorhanden
 
-    # Rename "mv_x" to "mv" for better understanding
-    squad_df = squad_df.rename(columns={"mv_x": "mv"})
+    # mv_change_1d → mv_change_yesterday
+    if "mv_change_1d" in squad_df.columns:
+        squad_df = squad_df.rename(columns={"mv_change_1d": "mv_change_yesterday"})
+    elif "mv_change_yesterday" not in squad_df.columns:
+        squad_df["mv_change_yesterday"] = np.nan
 
-    # Keep only relevant columns
-    squad_df = squad_df[["first_name", "last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob"]]
+    # Relevante Spalten sicher auswählen
+    keep = [
+        "first_name", "last_name", "team_name", "mv",
+        "mv_change_yesterday", "predicted_mv_target", "s_11_prob"
+    ]
+    for c in keep:
+        if c not in squad_df.columns:
+            squad_df[c] = np.nan
+    squad_df = squad_df[keep]
 
-    return squad_df  # Debugging line to inspect the response structure
+    # Debug ins Actions-Log
+    print("DEBUG squad_df columns:", list(squad_df.columns))
+    return squad_df
 
 
-# TODO Add fail-safe check before player expires if the prob (starting 11) is still high, so no injuries or anything. if it dropped. dont bid / reccommend
 def join_current_market(token, league_id, today_df_results):
-    """Join the live predictions with the current market data to get bid recommendations"""
+    from kickbase_api.league_data import get_players_on_market
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
     players_on_market = get_players_on_market(token, league_id)
-
-    # players_on_market to DataFrame
     market_df = pd.DataFrame(players_on_market)
 
-    # Join market_df ("id") with today_df ("player_id")
-    bid_df = (
-        pd.merge(today_df_results, market_df, left_on="player_id", right_on="id")
-        .drop(columns=["id"])
-    )
+    bid_df = pd.merge(today_df_results, market_df, left_on="player_id", right_on="id", how="inner")
 
-    # exp contains seconds until expiration
-    bid_df["hours_to_exp"] = np.round((bid_df["exp"] / 3600), 2)
+    # Stunden bis Ablauf
+    if "exp" in bid_df.columns:
+        bid_df["hours_to_exp"] = np.round(bid_df["exp"] / 3600, 2)
+    else:
+        bid_df["hours_to_exp"] = np.nan
 
-    # check if current sysdate + hours_to_exp is after the next 22:00
+    # Heute ablaufend?
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     next_22 = now.replace(hour=22, minute=0, second=0, microsecond=0)
     diff = np.round((next_22 - now).total_seconds() / 3600, 2)
-
-    # If hours_to_exp < diff then it expires today
     bid_df["expiring_today"] = bid_df["hours_to_exp"] < diff
 
-    # Drop rows where predicted_mv_target is less than 5000
-    bid_df = bid_df[bid_df["predicted_mv_target"] > 5000]
+    # sinnvolle Predictions
+    if "predicted_mv_target" in bid_df.columns:
+        bid_df = bid_df[bid_df["predicted_mv_target"] > 5000].sort_values("predicted_mv_target", ascending=False)
 
-    # Sort by predicted_mv_target descending
-    bid_df = bid_df.sort_values("predicted_mv_target", ascending=False)
+    # Startelf-Proba vereinheitlichen
+    if "prob" in bid_df.columns:
+        bid_df = bid_df.rename(columns={"prob": "s_11_prob"})
+    elif "s11_prob" in bid_df.columns:
+        bid_df = bid_df.rename(columns={"s11_prob": "s_11_prob"})
+    if "s_11_prob" not in bid_df.columns:
+        bid_df["s_11_prob"] = np.nan
 
-    # Rename prob to s_11_prob for better understanding
-    bid_df = bid_df.rename(columns={"prob": "s_11_prob"})
+    # mv_change_1d → mv_change_yesterday
+    if "mv_change_1d" in bid_df.columns:
+        bid_df = bid_df.rename(columns={"mv_change_1d": "mv_change_yesterday"})
+    elif "mv_change_yesterday" not in bid_df.columns:
+        bid_df["mv_change_yesterday"] = np.nan
 
-    # Rename mv_change_1d to mv_change_yesterday for better understanding
-    bid_df = bid_df.rename(columns={"mv_change_1d": "mv_change_yesterday"})
+    keep = [
+        "first_name", "last_name", "team_name", "mv",
+        "mv_change_yesterday", "predicted_mv_target", "s_11_prob",
+        "hours_to_exp", "expiring_today"
+    ]
+    for c in keep:
+        if c not in bid_df.columns:
+            bid_df[c] = np.nan
+    bid_df = bid_df[keep]
 
-    # Keep only relevant columns
-    bid_df = bid_df[["first_name", "last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob", "hours_to_exp", "expiring_today"]]
-
+    print("DEBUG bid_df columns:", list(bid_df.columns))
     return bid_df
