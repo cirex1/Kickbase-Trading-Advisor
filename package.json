@@ -1,0 +1,13 @@
+{
+  "name": "postaw-na-milion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Teleturniej \"Postaw na milion\" jako gra przeglądarkowa – bez zależności, bez budowania.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "start": "python3 -m http.server 8080"
+  },
+  "keywords": ["gra", "teleturniej", "quiz", "postaw-na-milion"],
+  "license": "MIT"
+}

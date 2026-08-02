@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Postaw na milion</title>
+    <meta
+      name="description"
+      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w żetonach, dziesięć pytań, zero litości."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0a1f" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23ffb02e'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23241b05' stroke-width='2' stroke-dasharray='4 3'/%3E%3Ctext x='16' y='21' font-size='12' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='%23241b05'%3EM%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="assets/css/style.css" />
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"></div>
+
+    <div class="app">
+      <header class="topbar">
+        <p class="logo">Postaw na <span>milion</span></p>
+        <div class="topbar__actions">
+          <button id="btn-rules" class="btn btn--ghost" type="button">Zasady</button>
+          <button id="btn-sound" class="btn btn--ghost" type="button" aria-pressed="true">🔊 Dźwięk</button>
+        </div>
+      </header>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Ekran startowy                                             -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-start" class="screen">
+        <div class="panel panel--intro">
+          <p class="intro__eyebrow">Teleturniej</p>
+          <h1 class="intro__title">Milion złotych.<br />Dziesięć pytań.</h1>
+          <p class="intro__lead">
+            Dostajesz pełną pulę w żetonach i rozkładasz ją na odpowiedzi. Co leży na dobrym polu —
+            zostaje. Reszta znika ze stołu.
+          </p>
+
+          <ol class="steps">
+            <li><strong>Rozłóż</strong> całą kwotę na dowolne odpowiedzi.</li>
+            <li><strong>Zatwierdź</strong>, zanim skończy się czas.</li>
+            <li><strong>Zabierz</strong> to, co przetrwało — i graj dalej.</li>
+          </ol>
+
+          <div class="start-actions">
+            <button id="btn-start" class="btn btn--gold btn--xl" type="button">Zaczynamy</button>
+            <label class="seed">
+              <span>Kod gry (opcjonalnie)</span>
+              <input id="seed-input" type="text" maxlength="24" placeholder="np. LOSOWY" autocomplete="off" />
+            </label>
+          </div>
+
+          <p id="best-score" class="best" role="status"></p>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Gra                                                        -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-game" class="screen">
+        <div class="hud">
+          <div class="hud__cell">
+            <span class="hud__label">Runda</span>
+            <strong id="round-label" class="hud__value">1 / 10</strong>
+          </div>
+          <div class="hud__cell hud__cell--bank">
+            <span class="hud__label">Na stole</span>
+            <strong id="balance" class="hud__value hud__value--money" role="status">1 000 000 zł</strong>
+          </div>
+          <div id="timer" class="hud__cell hud__cell--timer">
+            <svg viewBox="0 0 60 60" class="ring" aria-hidden="true">
+              <circle class="ring__bg" cx="30" cy="30" r="26" />
+              <circle id="timer-ring" class="ring__fg" cx="30" cy="30" r="26" />
+            </svg>
+            <span id="timer-value" class="ring__value">90</span>
+            <span class="visually-hidden">sekund do końca rundy</span>
+          </div>
+        </div>
+
+        <div class="question">
+          <span id="q-category" class="question__category">Geografia</span>
+          <h2 id="q-text" class="question__text">&nbsp;</h2>
+          <p id="q-multi" class="question__multi" hidden></p>
+        </div>
+
+        <div id="answers" class="answers"></div>
+
+        <div id="reveal" class="reveal" hidden>
+          <p id="reveal-headline" class="reveal__headline"></p>
+          <p id="reveal-detail" class="reveal__detail"></p>
+          <p id="reveal-note" class="reveal__note"></p>
+          <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
+        </div>
+
+        <div id="tray" class="tray">
+          <div class="tray__pool">
+            <span class="tray__label">Do rozdysponowania</span>
+            <strong id="unplaced" class="tray__value" role="status">1 000 000 zł</strong>
+          </div>
+          <div id="chips" class="chips" role="group" aria-label="Nominały żetonów"></div>
+          <div class="tray__actions">
+            <button id="btn-undo" class="btn btn--ghost" type="button">Cofnij</button>
+            <button id="btn-clear" class="btn btn--ghost" type="button">Wyczyść</button>
+            <button id="btn-lock" class="btn btn--gold" type="button" disabled>Zatwierdzam</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Koniec gry                                                 -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-end" class="screen">
+        <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+        <div class="panel panel--end">
+          <p id="end-eyebrow" class="end__eyebrow"></p>
+          <p id="end-amount" class="end__amount"></p>
+          <p id="end-text" class="end__text"></p>
+          <ol id="summary" class="summary"></ol>
+          <p id="end-seed" class="end__seed"></p>
+          <div class="end__actions">
+            <button id="btn-again" class="btn btn--gold" type="button">Jeszcze raz</button>
+            <button id="btn-home" class="btn btn--ghost" type="button">Ekran startowy</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <dialog id="rules-dialog" class="rules">
+      <h2>Zasady</h2>
+      <ul>
+        <li>Zaczynasz z pulą <strong>1 000 000 zł</strong> w żetonach.</li>
+        <li>
+          W każdej rundzie widzisz jedno pytanie. Rozkładasz całą pulę na odpowiedzi — możesz
+          postawić wszystko na jedno pole albo asekurować się na kilku.
+        </li>
+        <li>
+          Po zatwierdzeniu zostaje tylko to, co leży na <strong>poprawnych</strong> odpowiedziach.
+          Reszta przepada.
+        </li>
+        <li>
+          Niektóre pytania mają <strong>więcej niż jedną</strong> poprawną odpowiedź — gra uprzedza
+          o tym nad polami.
+        </li>
+        <li>
+          Zatwierdzić można dopiero po rozłożeniu całej kwoty. Jeśli skończy się czas, runda
+          rozliczy się sama, a nierozłożone pieniądze <strong>przepadają</strong>.
+        </li>
+        <li>Kiedy na stole zostanie zero — koniec gry. Rund jest dziesięć.</li>
+      </ul>
+      <h3>Skróty klawiszowe</h3>
+      <ul class="rules__keys">
+        <li><kbd>1</kbd>–<kbd>6</kbd> wybór nominału żetonu</li>
+        <li><kbd>A</kbd>–<kbd>E</kbd> położenie żetonu na odpowiedzi</li>
+        <li><kbd>Backspace</kbd> cofnięcie ostatniego ruchu</li>
+        <li><kbd>Enter</kbd> zatwierdzenie rundy / przejście dalej</li>
+      </ul>
+      <button id="btn-rules-close" class="btn btn--gold" type="button">Rozumiem</button>
+    </dialog>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
