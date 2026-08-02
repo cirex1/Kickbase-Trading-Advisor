@@ -644,21 +644,25 @@ input:focus-visible {
 
 /* --- warstwa 2: ekrany z odpowiedziami i stosy paczek ----------------- */
 
+/* Trzy wiersze: ekran, kwota, stos. Kafelki dziedziczą je przez subgrid,
+   dzięki czemu kwoty i stosy stoją równo także wtedy, gdy jedna odpowiedź
+   jest jednowyrazowa, a druga zajmuje trzy linijki. */
 .lanes {
   position: absolute;
   inset: 0;
   display: grid;
   grid-template-columns: repeat(var(--doors, 4), 1fr);
-  gap: var(--gap);
+  grid-template-rows: auto auto 1fr;
+  column-gap: var(--gap);
+  row-gap: 0;
 }
 
 .lane {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* stos ma stać na środku zapadni, a nie na dnie sceny */
-  padding-bottom: calc(var(--pit-h) + var(--floor-h) * 0.19);
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  justify-items: center;
 }
 
 .lane__hit {
@@ -801,9 +805,14 @@ input:focus-visible {
   position: relative;
   z-index: 2;
   pointer-events: none;
-  margin-top: auto;
+  align-self: end;
+  /* stos ma stać na zapadni, a nie na dnie sceny */
+  margin-bottom: calc(var(--pit-h) + var(--floor-h) * 0.19);
   width: min(78%, 92px);
   height: 118px;
+  /* wysokość najwyższego stosu (40 paczek) — czyta ją renderStack w app.js,
+     żeby CSS pozostał jedynym miejscem, gdzie ustala się rozmiary sceny */
+  --stack-max: 104px;
 }
 
 .bundle {
@@ -958,6 +967,7 @@ input:focus-visible {
   width: 54px;
   height: 46px;
   flex: none;
+  --stack-max: 34px;
 }
 
 .hand__stack .bundle {
@@ -1258,17 +1268,18 @@ kbd {
   .stage {
     height: clamp(250px, 34vh, 320px);
     --floor-h: 150px;
-    --pit-h: clamp(70px, 10vh, 100px);
+    --pit-h: clamp(60px, 8vh, 92px);
   }
 
   .lane__panel {
-    min-height: 3.8rem;
+    min-height: 3.4rem;
     padding: 0.45rem 0.3rem;
   }
 
   .lane__stack {
     width: min(84%, 62px);
-    height: 92px;
+    height: 80px;
+    --stack-max: 72px;
   }
 
   .tray {

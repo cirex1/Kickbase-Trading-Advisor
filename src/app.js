@@ -167,10 +167,16 @@ function refreshBestLabel() {
  * z lekkim, ale powtarzalnym rozchwianiem — żeby stos wyglądał jak ułożony
  * ręką, a nie wygenerowany.
  */
-function renderStack(node, amount, laneIndex = 0, maxHeight = STACK_HEIGHT) {
+function renderStack(node, amount, laneIndex = 0, fallbackHeight = STACK_HEIGHT) {
   const count = Math.round(amount / BUNDLE);
-  if (node.dataset.count === String(count)) return;
-  node.dataset.count = String(count);
+  // wysokość bierzemy z CSS (--stack-max), żeby oba układy — biurkowy
+  // i telefonowy — miały jedno źródło prawdy
+  const declared = parseFloat(getComputedStyle(node).getPropertyValue('--stack-max'));
+  const maxHeight = Number.isFinite(declared) && declared > 0 ? declared : fallbackHeight;
+
+  const key = `${count}:${maxHeight}`;
+  if (node.dataset.stack === key) return;
+  node.dataset.stack = key;
   node.innerHTML = '';
 
   const step = count > 0 ? Math.min(7, maxHeight / count) : 0;
