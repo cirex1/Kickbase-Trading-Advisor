@@ -7,8 +7,8 @@
  *     category:   nazwa kategorii pokazywana nad pytaniem,
  *     difficulty: 1-5 (1 = najłatwiejsze),
  *     text:       treść pytania,
- *     answers:    [{ text, correct }] — poprawnych może być kilka!,
- *     note:       krótkie wyjaśnienie pokazywane po odsłonięciu odpowiedzi
+ *     answers:    dokładnie 4 odpowiedzi (tyle jest zapadni), jedna poprawna,
+ *     note:       krótkie wyjaśnienie pokazywane po otwarciu zapadni
  *   }
  *
  * Kolejność odpowiedzi jest losowana w trakcie gry, więc można je tu wpisywać
@@ -366,9 +366,8 @@ export const QUESTIONS = [
     id: 'geo-ameryka-poludniowa',
     category: 'Geografia',
     difficulty: 4,
-    text: 'Które z tych państw leżą w Ameryce Południowej?',
+    text: 'Które z tych państw leży w Ameryce Południowej?',
     answers: [
-      { text: 'Peru', correct: true },
       { text: 'Ekwador', correct: true },
       { text: 'Panama' },
       { text: 'Kuba' },
@@ -473,29 +472,27 @@ export const QUESTIONS = [
     id: 'geo-szwajcaria',
     category: 'Geografia',
     difficulty: 5,
-    text: 'Które z tych języków są językami urzędowymi Szwajcarii?',
+    text: 'Który z tych języków NIE jest językiem urzędowym Szwajcarii?',
     answers: [
-      { text: 'Niemiecki', correct: true },
-      { text: 'Francuski', correct: true },
-      { text: 'Włoski', correct: true },
-      { text: 'Retoromański', correct: true },
-      { text: 'Angielski' },
+      { text: 'Angielski', correct: true },
+      { text: 'Niemiecki' },
+      { text: 'Włoski' },
+      { text: 'Retoromański' },
     ],
-    note: 'Szwajcaria ma cztery języki urzędowe — angielski nie jest jednym z nich.',
+    note: 'Szwajcaria ma cztery języki urzędowe: niemiecki, francuski, włoski i retoromański.',
   },
   {
     id: 'astro-pierscienie',
     category: 'Astronomia',
     difficulty: 5,
-    text: 'Które z tych planet mają pierścienie?',
+    text: 'Która z tych planet NIE ma pierścieni?',
     answers: [
-      { text: 'Saturn', correct: true },
-      { text: 'Jowisz', correct: true },
-      { text: 'Uran', correct: true },
-      { text: 'Mars' },
-      { text: 'Wenus' },
+      { text: 'Wenus', correct: true },
+      { text: 'Saturn' },
+      { text: 'Jowisz' },
+      { text: 'Uran' },
     ],
-    note: 'Pierścienie mają wszystkie cztery olbrzymy — poza Saturnem są jednak ledwo widoczne.',
+    note: 'Pierścienie mają wszystkie cztery gazowe olbrzymy — poza Saturnem są jednak ledwo widoczne.',
   },
 ];
 

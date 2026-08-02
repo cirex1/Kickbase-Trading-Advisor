@@ -6,13 +6,13 @@
     <title>Postaw na milion</title>
     <meta
       name="description"
-      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w żetonach, dziesięć pytań, zero litości."
+      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w paczkach, osiem pytań i zapadnie, które otwierają się pod błędnymi odpowiedziami."
     />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0b0a1f" />
+    <meta name="theme-color" content="#07061a" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23ffb02e'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23241b05' stroke-width='2' stroke-dasharray='4 3'/%3E%3Ctext x='16' y='21' font-size='12' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='%23241b05'%3EM%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0a1f'/%3E%3Crect x='4' y='9' width='24' height='7' rx='1.5' fill='%23ffc247'/%3E%3Crect x='6' y='17' width='20' height='5' rx='1' fill='%23ff9d1e'/%3E%3Cpath d='M3 25h26' stroke='%23ffc247' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="assets/css/style.css" />
   </head>
@@ -34,16 +34,16 @@
       <section id="screen-start" class="screen">
         <div class="panel panel--intro">
           <p class="intro__eyebrow">Teleturniej</p>
-          <h1 class="intro__title">Milion złotych.<br />Dziesięć pytań.</h1>
+          <h1 class="intro__title">Milion złotych.<br />Cztery zapadnie.</h1>
           <p class="intro__lead">
-            Dostajesz pełną pulę w żetonach i rozkładasz ją na odpowiedzi. Co leży na dobrym polu —
-            zostaje. Reszta znika ze stołu.
+            Dostajesz czterdzieści paczek po 25 000 zł. Kładziesz je na zapadniach z odpowiedziami —
+            a potem te pod błędnymi polami otwierają się i pieniądze lecą w dół.
           </p>
 
           <ol class="steps">
-            <li><strong>Rozłóż</strong> całą kwotę na dowolne odpowiedzi.</li>
+            <li><strong>Rozłóż</strong> wszystkie paczki, ale jedno pole zostaw puste.</li>
             <li><strong>Zatwierdź</strong>, zanim skończy się czas.</li>
-            <li><strong>Zabierz</strong> to, co przetrwało — i graj dalej.</li>
+            <li><strong>Zabierz</strong> to, co nie spadło — i graj dalej.</li>
           </ol>
 
           <div class="start-actions">
@@ -65,10 +65,10 @@
         <div class="hud">
           <div class="hud__cell">
             <span class="hud__label">Runda</span>
-            <strong id="round-label" class="hud__value">1 / 10</strong>
+            <strong id="round-label" class="hud__value">1 / 8</strong>
           </div>
           <div class="hud__cell hud__cell--bank">
-            <span class="hud__label">Na stole</span>
+            <span class="hud__label">W grze</span>
             <strong id="balance" class="hud__value hud__value--money" role="status">1 000 000 zł</strong>
           </div>
           <div id="timer" class="hud__cell hud__cell--timer">
@@ -84,28 +84,45 @@
         <div class="question">
           <span id="q-category" class="question__category">Geografia</span>
           <h2 id="q-text" class="question__text">&nbsp;</h2>
-          <p id="q-multi" class="question__multi" hidden></p>
+          <p id="q-final" class="question__final" hidden>
+            Finał — zostały dwie zapadnie. Wszystko na jedną.
+          </p>
         </div>
 
-        <div id="answers" class="answers"></div>
-
-        <div id="reveal" class="reveal" hidden>
-          <p id="reveal-headline" class="reveal__headline"></p>
-          <p id="reveal-detail" class="reveal__detail"></p>
-          <p id="reveal-note" class="reveal__note"></p>
-          <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
+        <!-- Scena: warstwa zapadni (3D) + warstwa ekranów i stosów (2D) -->
+        <div id="stage" class="stage" style="--doors: 4">
+          <div class="stage__void" aria-hidden="true"></div>
+          <div id="floor" class="floor" aria-hidden="true"></div>
+          <div id="lanes" class="lanes"></div>
         </div>
 
-        <div id="tray" class="tray">
-          <div class="tray__pool">
-            <span class="tray__label">Do rozdysponowania</span>
-            <strong id="unplaced" class="tray__value" role="status">1 000 000 zł</strong>
+        <!-- Taca i podsumowanie dzielą to samo miejsce, żeby scena nie skakała. -->
+        <div class="bottombar">
+          <div id="reveal" class="reveal" hidden>
+            <p id="reveal-headline" class="reveal__headline"></p>
+            <p id="reveal-detail" class="reveal__detail"></p>
+            <p id="reveal-note" class="reveal__note"></p>
+            <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
           </div>
-          <div id="chips" class="chips" role="group" aria-label="Nominały żetonów"></div>
-          <div class="tray__actions">
-            <button id="btn-undo" class="btn btn--ghost" type="button">Cofnij</button>
-            <button id="btn-clear" class="btn btn--ghost" type="button">Wyczyść</button>
-            <button id="btn-lock" class="btn btn--gold" type="button" disabled>Zatwierdzam</button>
+
+          <div id="tray" class="tray">
+            <div class="tray__hand">
+              <div id="hand-stack" class="hand__stack" aria-hidden="true"></div>
+              <div class="hand__info">
+                <span class="tray__label">W rękach</span>
+                <strong id="unplaced" class="tray__value" role="status">1 000 000 zł</strong>
+                <span id="unplaced-count" class="tray__count">40 paczek</span>
+              </div>
+            </div>
+
+            <div id="grabs" class="grabs" role="group" aria-label="Ile paczek brać naraz"></div>
+
+            <div class="tray__actions">
+              <button id="btn-undo" class="btn btn--ghost" type="button">Cofnij</button>
+              <button id="btn-clear" class="btn btn--ghost" type="button">Zdejmij wszystko</button>
+              <button id="btn-lock" class="btn btn--gold" type="button" disabled>Zatwierdzam</button>
+              <p id="lock-hint" class="tray__hint" role="status"></p>
+            </div>
           </div>
         </div>
       </section>
@@ -132,29 +149,35 @@
     <dialog id="rules-dialog" class="rules">
       <h2>Zasady</h2>
       <ul>
-        <li>Zaczynasz z pulą <strong>1 000 000 zł</strong> w żetonach.</li>
         <li>
-          W każdej rundzie widzisz jedno pytanie. Rozkładasz całą pulę na odpowiedzi — możesz
-          postawić wszystko na jedno pole albo asekurować się na kilku.
+          Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.
         </li>
         <li>
-          Po zatwierdzeniu zostaje tylko to, co leży na <strong>poprawnych</strong> odpowiedziach.
-          Reszta przepada.
+          Pod każdą odpowiedzią jest <strong>zapadnia</strong>. Kładziesz na nich wszystkie paczki:
+          wszystko na jedną albo z asekuracją na kilku.
         </li>
         <li>
-          Niektóre pytania mają <strong>więcej niż jedną</strong> poprawną odpowiedź — gra uprzedza
-          o tym nad polami.
+          <strong>Jedna zapadnia musi zostać pusta</strong> — na wszystkie naraz postawić się nie da.
         </li>
         <li>
-          Zatwierdzić można dopiero po rozłożeniu całej kwoty. Jeśli skończy się czas, runda
-          rozliczy się sama, a nierozłożone pieniądze <strong>przepadają</strong>.
+          Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami się otwierają. To, co na nich leżało,
+          leci w dół i nie wraca.
         </li>
-        <li>Kiedy na stole zostanie zero — koniec gry. Rund jest dziesięć.</li>
+        <li>
+          Zatwierdzić można dopiero po rozłożeniu wszystkich paczek. Jeśli skończy się czas, runda
+          rozliczy się sama, a paczki trzymane w rękach <strong>przepadają</strong>.
+        </li>
+        <li>
+          Rund jest osiem. W <strong>finale</strong> zostają tylko dwie zapadnie — czyli wszystko na
+          jedną odpowiedź.
+        </li>
+        <li>Kiedy w grze zostanie 0 zł — koniec.</li>
       </ul>
       <h3>Skróty klawiszowe</h3>
       <ul class="rules__keys">
-        <li><kbd>1</kbd>–<kbd>6</kbd> wybór nominału żetonu</li>
-        <li><kbd>A</kbd>–<kbd>E</kbd> położenie żetonu na odpowiedzi</li>
+        <li><kbd>1</kbd>–<kbd>4</kbd> ile paczek brać naraz</li>
+        <li><kbd>A</kbd>–<kbd>D</kbd> położenie paczek na zapadni</li>
+        <li><kbd>Shift</kbd> + <kbd>A</kbd>–<kbd>D</kbd> cała reszta na jedno pole</li>
         <li><kbd>Backspace</kbd> cofnięcie ostatniego ruchu</li>
         <li><kbd>Enter</kbd> zatwierdzenie rundy / przejście dalej</li>
       </ul>

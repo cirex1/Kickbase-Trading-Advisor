@@ -1,24 +1,33 @@
 /**
- * Warstwa prezentacji: łączy silnik gry (src/engine.js) z DOM-em.
- * Stan gry trzymamy w jednej zmiennej `state` i po każdej zmianie
- * odświeżamy odpowiedni fragment interfejsu.
+ * Warstwa prezentacji: łączy silnik gry (src/engine.js) ze sceną w DOM-ie.
+ *
+ * Scena składa się z dwóch warstw ułożonych na tej samej siatce kolumn:
+ *   .floor  — zapadnie odchylone w 3D (perspektywa studia),
+ *   .lanes  — ekrany z odpowiedziami i stosy paczek, w płaszczyźnie ekranu.
+ * Dzięki temu spadające paczki animujemy zwykłym translateY, bez walki
+ * z układem współrzędnych obróconej podłogi.
  */
 
 import {
-  DENOMINATIONS,
+  BUNDLE,
+  GRAB_SIZES,
   ROUND_COUNT,
   START_BALANCE,
   advance,
+  canLock,
+  canPlaceOn,
   clearBets,
   createGame,
   currentQuestion,
-  place,
+  emptyDoors,
+  placeBundles,
   placeRest,
   resolve,
   roundSeconds,
   take,
   undo,
   unplaced,
+  unplacedBundles,
 } from './engine.js';
 import { QUESTIONS } from './questions.js';
 import { isSoundOn, sfx, toggleSound } from './audio.js';
@@ -27,8 +36,13 @@ import { burst } from './confetti.js';
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const BEST_KEY = 'pnm.best';
 
+/** Maksymalna wysokość stosu w pikselach — na zapadni i w rękach. */
+const STACK_HEIGHT = 104;
+const HAND_STACK_HEIGHT = 34;
+
 const money = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const zl = (value) => `${money.format(Math.round(value))} zł`;
+const paczki = (n) => `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
 
 const $ = (id) => document.getElementById(id);
 
@@ -54,15 +68,21 @@ const el = {
 
   category: $('q-category'),
   questionText: $('q-text'),
-  multiHint: $('q-multi'),
-  answers: $('answers'),
+  finalHint: $('q-final'),
+
+  stage: $('stage'),
+  floor: $('floor'),
+  lanes: $('lanes'),
 
   tray: $('tray'),
   unplaced: $('unplaced'),
-  chips: $('chips'),
+  unplacedCount: $('unplaced-count'),
+  handStack: $('hand-stack'),
+  grabs: $('grabs'),
   btnUndo: $('btn-undo'),
   btnClear: $('btn-clear'),
   btnLock: $('btn-lock'),
+  lockHint: $('lock-hint'),
 
   reveal: $('reveal'),
   revealHeadline: $('reveal-headline'),
@@ -81,12 +101,14 @@ const el = {
 };
 
 let state = null;
-let selectedChip = DENOMINATIONS[DENOMINATIONS.length - 1];
-let answerNodes = [];
+let grabSize = 1;
+let lanes = [];
+let traps = [];
 let timerId = null;
 let deadline = 0;
 let lastWholeSecond = null;
 let stopConfetti = null;
+let revealTimers = [];
 
 /* ------------------------------------------------------------------ *
  * Pomocnicze
@@ -103,8 +125,17 @@ function randomSeed() {
   return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 }
 
+function clearRevealTimers() {
+  revealTimers.forEach(clearTimeout);
+  revealTimers = [];
+}
+
+function later(fn, delay) {
+  revealTimers.push(setTimeout(fn, delay));
+}
+
 /** Płynne przeliczanie kwoty na liczniku. */
-function animateMoney(node, from, to, duration = 700) {
+function animateMoney(node, from, to, duration = 900) {
   const start = performance.now();
   const step = (now) => {
     const t = Math.min(1, (now - start) / duration);
@@ -120,13 +151,42 @@ function readBest() {
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
-function writeBest(value) {
-  if (value > readBest()) localStorage.setItem(BEST_KEY, String(value));
-}
-
 function refreshBestLabel() {
   const best = readBest();
-  el.best.textContent = best ? `Twój najlepszy wynik: ${zl(best)}` : 'Jeszcze nie masz wyniku — czas to zmienić.';
+  el.best.textContent = best
+    ? `Twój najlepszy wynik: ${zl(best)}`
+    : 'Jeszcze nie masz wyniku — czas to zmienić.';
+}
+
+/* ------------------------------------------------------------------ *
+ * Stosy paczek
+ * ------------------------------------------------------------------ */
+
+/**
+ * Rysuje stos banknotów o zadanej wartości. Paczki układane są od dołu,
+ * z lekkim, ale powtarzalnym rozchwianiem — żeby stos wyglądał jak ułożony
+ * ręką, a nie wygenerowany.
+ */
+function renderStack(node, amount, laneIndex = 0, maxHeight = STACK_HEIGHT) {
+  const count = Math.round(amount / BUNDLE);
+  if (node.dataset.count === String(count)) return;
+  node.dataset.count = String(count);
+  node.innerHTML = '';
+
+  const step = count > 0 ? Math.min(7, maxHeight / count) : 0;
+  for (let i = 0; i < count; i++) {
+    const bundle = document.createElement('i');
+    bundle.className = 'bundle';
+    // deterministyczne "rozchwianie" — te same paczki zawsze wyglądają tak samo
+    const wobble = ((i * 37 + laneIndex * 11) % 7) - 3;
+    const tilt = ((i * 53 + laneIndex * 17) % 5) - 2;
+    bundle.style.setProperty('--i', String(i));
+    bundle.style.setProperty('--x', `${wobble}px`);
+    bundle.style.setProperty('--tilt', `${tilt}deg`);
+    bundle.style.setProperty('--drift', `${((i * 29 + laneIndex * 7) % 60) - 30}px`);
+    bundle.style.bottom = `${i * step}px`;
+    node.append(bundle);
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -134,48 +194,59 @@ function refreshBestLabel() {
  * ------------------------------------------------------------------ */
 
 function renderRound() {
+  clearRevealTimers();
   const question = currentQuestion(state);
-  const correctCount = question.answers.filter((a) => a.correct).length;
+  const doors = question.answers.length;
 
   el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
   el.category.textContent = question.category;
   el.questionText.textContent = question.text;
-  el.multiHint.hidden = correctCount < 2;
-  el.multiHint.textContent = `Uwaga: poprawne odpowiedzi: ${correctCount}`;
+  el.finalHint.hidden = !question.isFinal;
 
   el.reveal.hidden = true;
   el.tray.hidden = false;
-  el.answers.classList.remove('is-revealed');
-  el.answers.innerHTML = '';
-  answerNodes = [];
+  el.stage.style.setProperty('--doors', String(doors));
+  el.stage.classList.remove('is-revealed');
 
-  question.answers.forEach((answer, index) => {
-    const card = document.createElement('div');
-    card.className = 'answer';
-    card.dataset.index = String(index);
-    card.innerHTML = `
-      <button class="answer__main" type="button" data-act="place">
-        <span class="answer__letter">${LETTERS[index]}</span>
-        <span class="answer__text"></span>
-      </button>
-      <div class="answer__footer">
-        <span class="answer__amount">0 zł</span>
-        <span class="answer__tools">
-          <button class="mini" type="button" data-act="take" title="Zdejmij żeton">−</button>
-          <button class="mini" type="button" data-act="rest" title="Dołóż całą resztę">Reszta</button>
-        </span>
-      </div>
-      <div class="answer__bar"><i></i></div>
+  // warstwa zapadni
+  el.floor.innerHTML = '';
+  traps = question.answers.map(() => {
+    const trap = document.createElement('div');
+    trap.className = 'trap';
+    trap.innerHTML = `
+      <div class="trap__pit"></div>
+      <div class="trap__flap trap__flap--l"></div>
+      <div class="trap__flap trap__flap--r"></div>
     `;
-    card.querySelector('.answer__text').textContent = answer.text;
-    el.answers.append(card);
-    answerNodes.push({
-      card,
-      amount: card.querySelector('.answer__amount'),
-      bar: card.querySelector('.answer__bar i'),
-      main: card.querySelector('.answer__main'),
-      buttons: [...card.querySelectorAll('button')],
-    });
+    el.floor.append(trap);
+    return trap;
+  });
+
+  // warstwa ekranów i stosów
+  el.lanes.innerHTML = '';
+  lanes = question.answers.map((answer, index) => {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    lane.dataset.index = String(index);
+    lane.innerHTML = `
+      <button class="lane__hit" type="button" data-act="place" aria-label="Połóż paczki na polu ${LETTERS[index]}"></button>
+      <div class="lane__panel">
+        <span class="lane__letter">${LETTERS[index]}</span>
+        <span class="lane__text"></span>
+      </div>
+      <div class="lane__amount">0 zł</div>
+      <div class="lane__stack"></div>
+      <button class="lane__minus" type="button" data-act="take" title="Zabierz paczkę" aria-label="Zabierz paczkę z pola ${LETTERS[index]}">−</button>
+    `;
+    lane.querySelector('.lane__text').textContent = answer.text;
+    el.lanes.append(lane);
+    return {
+      lane,
+      amount: lane.querySelector('.lane__amount'),
+      stack: lane.querySelector('.lane__stack'),
+      hit: lane.querySelector('.lane__hit'),
+      minus: lane.querySelector('.lane__minus'),
+    };
   });
 
   el.balance.textContent = zl(state.balance);
@@ -183,45 +254,55 @@ function renderRound() {
   startTimer();
 }
 
-function renderChips() {
-  const left = unplaced(state);
-  const affordable = DENOMINATIONS.filter((d) => d <= left);
-  if (affordable.length && !affordable.includes(selectedChip)) {
-    selectedChip = affordable[affordable.length - 1];
-  }
+function renderGrabs() {
+  const left = unplacedBundles(state);
+  el.grabs.innerHTML = '';
 
-  el.chips.innerHTML = '';
-  DENOMINATIONS.forEach((value, i) => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = `chip chip--${i}`;
-    chip.dataset.value = String(value);
-    chip.disabled = value > left || state.status !== 'placing';
-    chip.setAttribute('aria-pressed', String(value === selectedChip));
-    chip.classList.toggle('is-selected', value === selectedChip);
-    chip.innerHTML = `<span class="chip__value">${value >= 1000 ? `${value / 1000}k` : value}</span>`;
-    chip.title = `Żeton ${zl(value)} (klawisz ${i + 1})`;
-    el.chips.append(chip);
+  GRAB_SIZES.forEach((size, i) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'grab';
+    button.dataset.size = String(size);
+    button.disabled = state.status !== 'placing' || left <= 0;
+    button.classList.toggle('is-selected', size === grabSize);
+    button.setAttribute('aria-pressed', String(size === grabSize));
+    button.innerHTML = `
+      <span class="grab__stack" style="--n:${Math.min(size, 4)}"></span>
+      <span class="grab__label">${zl(size * BUNDLE)}</span>
+    `;
+    button.title = `Bierz ${paczki(size)} naraz (klawisz ${i + 1})`;
+    el.grabs.append(button);
   });
 }
 
 function renderStakes() {
   const left = unplaced(state);
-  const total = Math.max(state.balance, 1);
 
-  answerNodes.forEach((node, index) => {
+  lanes.forEach((node, index) => {
     const value = state.bets[index] ?? 0;
-    node.amount.textContent = zl(value);
-    node.bar.style.width = `${(value / total) * 100}%`;
-    node.card.classList.toggle('has-stake', value > 0);
+    node.amount.textContent = value > 0 ? zl(value) : '';
+    node.lane.classList.toggle('has-money', value > 0);
+    node.lane.classList.toggle('is-blocked', !canPlaceOn(state, index));
+    node.hit.disabled = !canPlaceOn(state, index);
+    node.minus.disabled = value <= 0 || state.status !== 'placing';
+    renderStack(node.stack, value, index);
   });
 
+  renderStack(el.handStack, left, 9, HAND_STACK_HEIGHT);
   el.unplaced.textContent = zl(left);
+  el.unplacedCount.textContent = left > 0 ? paczki(unplacedBundles(state)) : 'ręce puste';
   el.unplaced.classList.toggle('is-zero', left === 0);
-  el.btnLock.disabled = left !== 0 || state.status !== 'placing';
+
+  const ready = canLock(state);
+  el.btnLock.disabled = !ready;
   el.btnUndo.disabled = !state.moves.length || state.status !== 'placing';
   el.btnClear.disabled = left === state.balance || state.status !== 'placing';
-  renderChips();
+
+  if (ready || state.status !== 'placing') el.lockHint.textContent = '';
+  else if (left > 0) el.lockHint.textContent = 'Rozłóż wszystkie paczki.';
+  else el.lockHint.textContent = 'Jedna zapadnia musi zostać pusta.';
+
+  renderGrabs();
 }
 
 /* ------------------------------------------------------------------ *
@@ -266,71 +347,93 @@ function tick(seconds) {
 }
 
 /* ------------------------------------------------------------------ *
- * Rozstrzygnięcie rundy
+ * Otwieranie zapadni
  * ------------------------------------------------------------------ */
 
 function lockIn(byTimeout = false) {
   if (!state || state.status !== 'placing') return;
+  if (!byTimeout && !canLock(state)) return;
   stopTimer();
 
   const before = state.balance;
   state = resolve(state);
-  const { correct, kept, lost, forfeited } = state.result;
-
-  sfx.lock();
-  el.tray.hidden = true;
-  el.answers.classList.add('is-revealed');
-
+  const { correct, kept, dropped, forfeited } = state.result;
   const correctSet = new Set(correct);
-  answerNodes.forEach((node, index) => {
-    node.buttons.forEach((b) => (b.disabled = true));
-    node.card.classList.add(correctSet.has(index) ? 'is-correct' : 'is-wrong');
-    if (!correctSet.has(index) && state.bets[index] > 0) {
-      node.card.classList.add('is-swept');
-    }
+
+  el.tray.hidden = true;
+  el.stage.classList.add('is-revealed');
+  lanes.forEach((node) => {
+    node.hit.disabled = true;
+    node.minus.disabled = true;
   });
 
-  setTimeout(() => {
-    if (kept > 0) sfx.correct();
-    else sfx.wrong();
-    if (lost > 0) sfx.sweep();
-    animateMoney(el.balance, before, kept);
-  }, 450);
+  sfx.lock();
 
-  el.revealHeadline.textContent = kept === 0 ? 'Koniec drogi' : `Zostaje ${zl(kept)}`;
-  el.revealHeadline.classList.toggle('is-bad', kept === 0);
+  // 1. napięcie — moment ciszy przed otwarciem
+  later(() => sfx.tension(), 250);
 
-  const parts = [];
-  if (kept === 0) parts.push('Wszystkie żetony leżały na złych polach.');
-  else if (lost === 0) parts.push('Cała kwota jedzie dalej — ani złotówki straty.');
-  else parts.push(`Ze stołu znika ${zl(lost)}.`);
-  if (forfeited > 0) {
-    parts.push(
-      byTimeout
-        ? `Czas minął — ${zl(forfeited)} nie trafiło na żadne pole.`
-        : `${zl(forfeited)} nie zostało rozłożone i przepada.`,
-    );
-  }
-  el.revealDetail.textContent = parts.join(' ');
+  // 2. zapadnie się otwierają
+  later(() => {
+    sfx.doors();
+    traps.forEach((trap, i) => {
+      if (correctSet.has(i)) {
+        trap.classList.add('is-safe');
+        lanes[i].lane.classList.add('is-safe');
+      } else {
+        trap.classList.add('is-open');
+        lanes[i].lane.classList.add('is-doomed');
+      }
+    });
+  }, 1400);
 
-  const question = currentQuestion(state);
-  const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
-  el.revealNote.textContent = `${correct.length > 1 ? 'Poprawne' : 'Poprawna'} ${
-    correct.length > 1 ? 'odpowiedzi' : 'odpowiedź'
-  } — ${names}. ${question.note ?? ''}`.trim();
+  // 3. paczki lecą w dół
+  later(() => {
+    let anyFell = false;
+    lanes.forEach((node, i) => {
+      if (!correctSet.has(i) && state.bets[i] > 0) {
+        node.stack.classList.add('is-falling');
+        anyFell = true;
+      }
+    });
+    if (anyFell) sfx.fall();
+    if (kept > 0) later(() => sfx.safe(), 500);
+    else later(() => sfx.wrong(), 700);
+    animateMoney(el.balance, before, kept, 1200);
+  }, 1750);
 
-  el.btnNext.textContent = state.outcome === 'continue' ? 'Następne pytanie' : 'Podsumowanie';
-  el.reveal.hidden = false;
-  el.btnNext.focus();
+  // 4. podsumowanie rundy
+  later(() => {
+    el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
+    el.revealHeadline.classList.toggle('is-bad', kept === 0);
+
+    const parts = [];
+    if (kept === 0) parts.push('Cała kwota poleciała w dół.');
+    else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
+    else parts.push(`W dół poleciało ${zl(dropped)}.`);
+    if (forfeited > 0) {
+      parts.push(
+        byTimeout
+          ? `Czas minął — ${zl(forfeited)} zostało w rękach i przepadło.`
+          : `${zl(forfeited)} nie trafiło na żadną zapadnię.`,
+      );
+    }
+    el.revealDetail.textContent = parts.join(' ');
+
+    const question = currentQuestion(state);
+    const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
+    el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+
+    el.btnNext.textContent = state.outcome === 'continue' ? 'Następne pytanie' : 'Podsumowanie';
+    el.reveal.hidden = false;
+    el.btnNext.focus();
+  }, 2900);
 }
 
 function goNext() {
+  clearRevealTimers();
   state = advance(state);
-  if (state.status === 'over') {
-    showEnd();
-  } else {
-    renderRound();
-  }
+  if (state.status === 'over') showEnd();
+  else renderRound();
 }
 
 /* ------------------------------------------------------------------ *
@@ -342,7 +445,7 @@ function showEnd() {
   const won = state.balance > 0;
   const jackpot = state.balance >= START_BALANCE;
 
-  writeBest(state.balance);
+  if (state.balance > readBest()) localStorage.setItem(BEST_KEY, String(state.balance));
   refreshBestLabel();
 
   el.endEyebrow.textContent = jackpot
@@ -353,10 +456,10 @@ function showEnd() {
   el.endAmount.textContent = zl(state.balance);
   el.endAmount.classList.toggle('is-bad', !won);
   el.endText.textContent = jackpot
-    ? 'Komplet dziesięciu pytań i pełna pula. Lepiej się nie da.'
+    ? 'Osiem pytań, ani jedna paczka w dół. Lepiej się nie da.'
     : won
-      ? 'Kwota, która została na stole, jedzie do domu.'
-      : 'Na stole nie został ani grosz. Następnym razem warto rozłożyć żetony szerzej.';
+      ? 'To, co zostało na zapadni, jedzie do domu.'
+      : 'Wszystkie zapadnie się otworzyły. Następnym razem warto rozłożyć paczki szerzej.';
   el.endSeed.textContent = `Kod tej gry: ${state.seed}`;
 
   el.summary.innerHTML = '';
@@ -366,7 +469,9 @@ function showEnd() {
     item.innerHTML = `
       <span class="summary__round">Runda ${row.round}</span>
       <span class="summary__kept">${zl(row.kept)}</span>
-      <span class="summary__lost">${row.lost > 0 ? `−${zl(row.lost)}` : '—'}</span>
+      <span class="summary__lost${row.dropped > 0 ? '' : ' is-none'}">${
+        row.dropped > 0 ? `−${zl(row.dropped)}` : '—'
+      }</span>
     `;
     el.summary.append(item);
   });
@@ -387,62 +492,59 @@ function showEnd() {
  * ------------------------------------------------------------------ */
 
 function startGame(seed) {
+  clearRevealTimers();
   if (stopConfetti) {
     stopConfetti();
     stopConfetti = null;
   }
   state = createGame({ questions: QUESTIONS, seed: seed || randomSeed() });
-  selectedChip = DENOMINATIONS[DENOMINATIONS.length - 1];
+  grabSize = 1;
   showScreen('game');
   renderRound();
 }
 
-function onAnswerClick(event) {
-  const button = event.target.closest('button[data-act]');
-  if (!button || state?.status !== 'placing') return;
-  const card = button.closest('.answer');
-  const index = Number(card.dataset.index);
-
-  if (button.dataset.act === 'place') {
-    const left = unplaced(state);
-    if (left <= 0) return;
-    const amount = Math.min(selectedChip, left);
-    state = place(state, index, amount);
-    sfx.place();
-    pulse(card);
-  } else if (button.dataset.act === 'take') {
-    if (!state.bets[index]) return;
-    state = take(state, index, Math.min(selectedChip, state.bets[index]));
-    sfx.remove();
-  } else if (button.dataset.act === 'rest') {
-    if (unplaced(state) <= 0) return;
-    state = placeRest(state, index);
-    sfx.place();
-    pulse(card);
+function putOn(index, all = false) {
+  if (!canPlaceOn(state, index)) {
+    sfx.blocked();
+    return;
   }
+  state = all ? placeRest(state, index) : placeBundles(state, index, grabSize);
+  sfx.place();
+  const node = lanes[index];
+  node.lane.classList.remove('is-bumped');
+  void node.lane.offsetWidth;
+  node.lane.classList.add('is-bumped');
   renderStakes();
 }
 
-function pulse(card) {
-  card.classList.remove('is-pulsing');
-  void card.offsetWidth;
-  card.classList.add('is-pulsing');
+function onLaneClick(event) {
+  const button = event.target.closest('button[data-act]');
+  if (!button || state?.status !== 'placing') return;
+  const index = Number(button.closest('.lane').dataset.index);
+
+  if (button.dataset.act === 'place') {
+    putOn(index, event.shiftKey);
+  } else if (button.dataset.act === 'take') {
+    if (!state.bets[index]) return;
+    state = take(state, index, Math.min(grabSize * BUNDLE, state.bets[index]));
+    sfx.remove();
+    renderStakes();
+  }
 }
 
-function onChipClick(event) {
-  const chip = event.target.closest('.chip');
-  if (!chip || chip.disabled) return;
-  selectedChip = Number(chip.dataset.value);
-  sfx.chip();
-  renderChips();
+function onGrabClick(event) {
+  const button = event.target.closest('.grab');
+  if (!button || button.disabled) return;
+  grabSize = Number(button.dataset.size);
+  sfx.grab();
+  renderGrabs();
 }
 
 function onKeyDown(event) {
   if (event.target.matches('input, textarea')) return;
-  if (el.rulesDialog.open) return;
-  if (!state) return;
+  if (el.rulesDialog.open || !state) return;
 
-  if (state.status === 'revealed' && (event.key === 'Enter' || event.key === ' ')) {
+  if (state.status === 'revealed' && !el.reveal.hidden && (event.key === 'Enter' || event.key === ' ')) {
     event.preventDefault();
     goNext();
     return;
@@ -450,25 +552,17 @@ function onKeyDown(event) {
   if (state.status !== 'placing') return;
 
   const digit = Number(event.key);
-  if (digit >= 1 && digit <= DENOMINATIONS.length) {
-    const value = DENOMINATIONS[digit - 1];
-    if (value <= unplaced(state)) {
-      selectedChip = value;
-      sfx.chip();
-      renderChips();
-    }
+  if (digit >= 1 && digit <= GRAB_SIZES.length) {
+    grabSize = GRAB_SIZES[digit - 1];
+    sfx.grab();
+    renderGrabs();
     return;
   }
 
   const letter = LETTERS.indexOf(event.key.toUpperCase());
   if (letter >= 0 && letter < state.bets.length) {
     event.preventDefault();
-    const left = unplaced(state);
-    if (left <= 0) return;
-    state = place(state, letter, Math.min(selectedChip, left));
-    sfx.place();
-    pulse(answerNodes[letter].card);
-    renderStakes();
+    putOn(letter, event.shiftKey);
     return;
   }
 
@@ -477,7 +571,7 @@ function onKeyDown(event) {
     state = undo(state);
     sfx.remove();
     renderStakes();
-  } else if (event.key === 'Enter' && unplaced(state) === 0) {
+  } else if (event.key === 'Enter' && canLock(state)) {
     event.preventDefault();
     lockIn();
   }
@@ -493,8 +587,8 @@ function syncSoundButton() {
  * Podpięcie zdarzeń
  * ------------------------------------------------------------------ */
 
-el.answers.addEventListener('click', onAnswerClick);
-el.chips.addEventListener('click', onChipClick);
+el.lanes.addEventListener('click', onLaneClick);
+el.grabs.addEventListener('click', onGrabClick);
 el.btnLock.addEventListener('click', () => lockIn(false));
 el.btnNext.addEventListener('click', goNext);
 el.btnUndo.addEventListener('click', () => {
@@ -514,6 +608,7 @@ el.seedInput.addEventListener('keydown', (e) => {
 });
 el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
+  clearRevealTimers();
   if (stopConfetti) stopConfetti();
   stopTimer();
   refreshBestLabel();
@@ -553,3 +648,6 @@ if (seedFromUrl) el.seedInput.value = seedFromUrl;
 syncSoundButton();
 refreshBestLabel();
 showScreen('start');
+
+// `emptyDoors` przydaje się przy diagnozie w konsoli przeglądarki
+window.__pnm = { get state() { return state; }, emptyDoors: () => emptyDoors(state) };

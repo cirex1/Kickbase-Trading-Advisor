@@ -1,23 +1,32 @@
 /**
  * Silnik gry "Postaw na milion".
  *
+ * Zasady wzorowane na teleturnieju: pieniądze leżą w paczkach na zapadniach.
+ * Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami otwierają się i paczki
+ * lecą w dół. Zostaje tylko to, co leżało na poprawnym polu.
+ *
  * Moduł jest czysty (bez DOM, bez efektów ubocznych) i deterministyczny przy
  * podanym ziarnie losowości — dzięki temu da się go testować w Node.
  * Każda funkcja zwraca NOWY stan, nigdy nie modyfikuje przekazanego.
  */
 
-export const START_BALANCE = 1_000_000;
-export const ROUND_COUNT = 10;
+/** Wartość jednej paczki banknotów. Wszystkie kwoty są jej wielokrotnością. */
+export const BUNDLE = 25_000;
 
-/** Nominały żetonów. Każdy jest wielokrotnością 1000, więc dowolną kwotę
- *  będącą wielokrotnością 1000 da się rozłożyć co do złotówki. */
-export const DENOMINATIONS = [1_000, 5_000, 10_000, 50_000, 100_000, 500_000];
+export const START_BALANCE = 1_000_000; // 40 paczek
+export const ROUND_COUNT = 8;
 
-/** Czas na rozłożenie żetonów w kolejnych rundach (w sekundach). */
-export const ROUND_SECONDS = [90, 90, 80, 80, 70, 70, 60, 60, 50, 45];
+/** Ile paczek naraz można chwycić (przyciski w tacy). */
+export const GRAB_SIZES = [1, 2, 4, 10];
+
+/** Czas na rozłożenie paczek w kolejnych rundach (w sekundach). */
+export const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
 
 /** Poziom trudności pytania w kolejnych rundach. */
-export const DIFFICULTY_PLAN = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5];
+export const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+
+/** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
+export const FINAL_DOORS = 2;
 
 /* ------------------------------------------------------------------ *
  * Losowość
@@ -105,6 +114,20 @@ export function prepareQuestion(question, rng) {
   };
 }
 
+/**
+ * Finał: zostaje poprawna odpowiedź i jeden losowy dystraktor.
+ * Kolejność znowu losowa, żeby poprawna nie lądowała zawsze po tej samej stronie.
+ */
+export function trimToFinal(question, rng, doors = FINAL_DOORS) {
+  const correct = question.answers.filter((a) => a.correct);
+  const wrong = shuffle(
+    question.answers.filter((a) => !a.correct),
+    rng,
+  );
+  const kept = [...correct, ...wrong].slice(0, Math.max(doors, correct.length + 1));
+  return { ...question, answers: shuffle(kept, rng), isFinal: true };
+}
+
 /* ------------------------------------------------------------------ *
  * Stan gry
  * ------------------------------------------------------------------ */
@@ -117,6 +140,8 @@ export function createGame({
 } = {}) {
   const rng = makeRng(seed);
   const selected = selectQuestions(questions, rng, plan);
+  selected[selected.length - 1] = trimToFinal(selected[selected.length - 1], rng);
+
   return {
     seed: String(seed),
     startBalance,
@@ -140,34 +165,65 @@ export function roundSeconds(state) {
   return ROUND_SECONDS[state.roundIndex] ?? ROUND_SECONDS[ROUND_SECONDS.length - 1];
 }
 
-/** Kwota, która nie została jeszcze rozłożona na odpowiedzi. */
+/** Kwota, która nie została jeszcze położona na żadnej zapadni. */
 export function unplaced(state) {
   return state.balance - state.bets.reduce((sum, v) => sum + v, 0);
 }
 
-/** Nominały, które da się jeszcze postawić. */
-export function availableChips(state) {
-  const left = unplaced(state);
-  return DENOMINATIONS.filter((d) => d <= left);
+/** Liczba paczek pozostałych w ręce. */
+export function unplacedBundles(state) {
+  return unplaced(state) / BUNDLE;
+}
+
+/** Ile zapadni jest jeszcze pustych. */
+export function emptyDoors(state) {
+  return state.bets.filter((v) => v === 0).length;
+}
+
+/**
+ * Zasada teleturnieju: co najmniej jedna zapadnia musi zostać pusta.
+ * Pilnujemy jej już przy kładzeniu paczek, więc stan nigdy nie jest niezgodny —
+ * także wtedy, gdy rundę rozliczy upływ czasu.
+ */
+export function canPlaceOn(state, index) {
+  if (state.status !== 'placing') return false;
+  if (unplaced(state) <= 0) return false;
+  if (state.bets[index] > 0) return true;
+  return emptyDoors(state) > 1;
+}
+
+/** Czy rundę można zatwierdzić. */
+export function canLock(state) {
+  return state.status === 'placing' && unplaced(state) === 0 && emptyDoors(state) >= 1;
 }
 
 function assertPlacing(state) {
   if (state.status !== 'placing') {
-    throw new Error('Żetony można układać tylko w trakcie rundy.');
+    throw new Error('Paczki można przekładać tylko w trakcie rundy.');
   }
 }
 
 export function place(state, index, amount) {
   assertPlacing(state);
   if (!Number.isInteger(index) || index < 0 || index >= state.bets.length) {
-    throw new Error('Nie ma takiej odpowiedzi.');
+    throw new Error('Nie ma takiej zapadni.');
   }
   if (!(amount > 0)) throw new Error('Kwota musi być dodatnia.');
+  if (amount % BUNDLE !== 0) throw new Error('Kłaść można tylko całe paczki.');
   if (amount > unplaced(state)) throw new Error('Nie masz tylu pieniędzy.');
+  if (state.bets[index] === 0 && emptyDoors(state) <= 1) {
+    throw new Error('Jedna zapadnia musi zostać pusta.');
+  }
 
   const bets = state.bets.slice();
   bets[index] += amount;
   return { ...state, bets, moves: [...state.moves, { index, amount }] };
+}
+
+/** Kładzie n paczek; jeśli tyle nie zostało, kładzie tyle, ile jest. */
+export function placeBundles(state, index, count) {
+  const available = Math.min(count, unplacedBundles(state));
+  return available > 0 ? place(state, index, available * BUNDLE) : state;
 }
 
 export function take(state, index, amount) {
@@ -180,7 +236,7 @@ export function take(state, index, amount) {
   return { ...state, bets, moves: [...state.moves, { index, amount: -value }] };
 }
 
-/** Dokłada całą nierozłożoną resztę na wskazaną odpowiedź. */
+/** Dokłada całą resztę na wskazaną zapadnię. */
 export function placeRest(state, index) {
   const left = unplaced(state);
   return left > 0 ? place(state, index, left) : state;
@@ -208,8 +264,8 @@ export function correctIndexes(question) {
 }
 
 /**
- * Zamyka rundę: na koncie zostaje tylko to, co leży na poprawnych
- * odpowiedziach. Pieniądze nierozłożone (np. po upływie czasu) przepadają.
+ * Otwiera zapadnie: zostaje tylko to, co leży na poprawnej odpowiedzi.
+ * Pieniądze wciąż trzymane w ręce (np. po upływie czasu) też lecą w dół.
  */
 export function resolve(state) {
   assertPlacing(state);
@@ -218,10 +274,10 @@ export function resolve(state) {
   const correctSet = new Set(correct);
 
   let kept = 0;
-  let lost = 0;
+  let dropped = 0;
   state.bets.forEach((value, i) => {
     if (correctSet.has(i)) kept += value;
-    else lost += value;
+    else dropped += value;
   });
   const forfeited = unplaced(state);
 
@@ -231,7 +287,7 @@ export function resolve(state) {
   const result = {
     correct,
     kept,
-    lost: lost + forfeited,
+    dropped: dropped + forfeited,
     forfeited,
     balanceBefore: state.balance,
   };
@@ -249,7 +305,7 @@ export function resolve(state) {
         questionId: question.id,
         bets: state.bets.slice(),
         kept,
-        lost: result.lost,
+        dropped: result.dropped,
       },
     ],
   };
