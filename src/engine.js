@@ -1,9 +1,10 @@
 /**
  * Silnik gry "Postaw na milion".
  *
- * Zasady wzorowane na teleturnieju: pieniądze leżą w paczkach na zapadniach.
- * Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami otwierają się i paczki
- * lecą w dół. Zostaje tylko to, co leżało na poprawnym polu.
+ * Przebieg rundy:
+ *   'choosing' → gracz dostaje dwie kategorie do wyboru
+ *   'placing'  → pada pytanie, gracz rozkłada paczki na zapadniach
+ *   'revealed' → zapadnie otwierają się po kolei, pieniądze lecą w dół
  *
  * Moduł jest czysty (bez DOM, bez efektów ubocznych) i deterministyczny przy
  * podanym ziarnie losowości — dzięki temu da się go testować w Node.
@@ -24,6 +25,9 @@ export const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
 
 /** Poziom trudności pytania w kolejnych rundach. */
 export const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+
+/** Ile kategorii dostaje gracz do wyboru przed pytaniem. */
+export const CATEGORY_CHOICES = 2;
 
 /** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
 export const FINAL_DOORS = 2;
@@ -68,42 +72,47 @@ export function shuffle(list, rng) {
   return out;
 }
 
+/**
+ * Losowość wywodzona z ziarna i etapu gry, zamiast jednego generatora
+ * przesuwanego w czasie. Dzięki temu stan pozostaje zwykłym obiektem —
+ * da się go porównać, zapisać i odtworzyć.
+ */
+function stageRng(state, stage) {
+  return makeRng(`${state.seed}#${state.roundIndex}#${stage}`);
+}
+
 /* ------------------------------------------------------------------ *
  * Dobór pytań
  * ------------------------------------------------------------------ */
 
+export function difficultyFor(roundIndex, plan = DIFFICULTY_PLAN) {
+  return plan[Math.min(roundIndex, plan.length - 1)];
+}
+
 /**
- * Wybiera po jednym pytaniu na rundę zgodnie z DIFFICULTY_PLAN.
- * Gdy w danym poziomie zabraknie pytań, sięga po najbliższy dostępny poziom.
- * Kolejność odpowiedzi w każdym pytaniu jest losowana.
+ * Pytania dostępne w danej rundzie: o właściwej trudności i jeszcze niezadane.
+ * Gdy pula na danym poziomie się wyczerpie, sięgamy po poziom najbliższy.
  */
-export function selectQuestions(questions, rng, plan = DIFFICULTY_PLAN) {
-  const pools = new Map();
-  for (const q of questions) {
-    if (!pools.has(q.difficulty)) pools.set(q.difficulty, []);
-    pools.get(q.difficulty).push(q);
+export function availableQuestions(state) {
+  const wanted = difficultyFor(state.roundIndex, state.plan);
+  const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
+  const levels = [...new Set(unused.map((q) => q.difficulty))].sort(
+    (a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b,
+  );
+  for (const level of levels) {
+    const batch = unused.filter((q) => q.difficulty === level);
+    if (batch.length) return batch;
   }
-  for (const [level, pool] of pools) pools.set(level, shuffle(pool, rng));
+  return [];
+}
 
-  const levels = [...pools.keys()].sort((a, b) => a - b);
-  const picked = [];
-
-  for (const wanted of plan) {
-    const order = levels
-      .slice()
-      .sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b);
-    let question = null;
-    for (const level of order) {
-      const pool = pools.get(level);
-      if (pool && pool.length) {
-        question = pool.pop();
-        break;
-      }
-    }
-    if (!question) throw new Error('Za mało pytań w bazie, aby rozpocząć grę.');
-    picked.push(prepareQuestion(question, rng));
-  }
-  return picked;
+/**
+ * Dwie kategorie do wyboru. Jeśli na danym poziomie została tylko jedna,
+ * gracz dostaje ją samą — wybór bez alternatywy nadal jest poprawną rundą.
+ */
+export function offeredCategories(state) {
+  const categories = [...new Set(availableQuestions(state).map((q) => q.category))];
+  return shuffle(categories, stageRng(state, 'kategorie')).slice(0, CATEGORY_CHOICES);
 }
 
 /** Kopiuje pytanie z potasowanymi odpowiedziami. */
@@ -138,27 +147,60 @@ export function createGame({
   startBalance = START_BALANCE,
   plan = DIFFICULTY_PLAN,
 } = {}) {
-  const rng = makeRng(seed);
-  const selected = selectQuestions(questions, rng, plan);
-  selected[selected.length - 1] = trimToFinal(selected[selected.length - 1], rng);
-
   return {
     seed: String(seed),
+    plan,
+    pool: questions,
     startBalance,
     balance: startBalance,
     roundIndex: 0,
-    questions: selected,
-    bets: new Array(selected[0].answers.length).fill(0),
+    usedIds: [],
+    question: null,
+    bets: [],
     moves: [],
-    status: 'placing', // 'placing' | 'revealed' | 'over'
+    status: 'choosing', // 'choosing' | 'placing' | 'revealed' | 'over'
     outcome: null, // 'continue' | 'lost' | 'won'
     result: null,
     history: [],
   };
 }
 
+/** Ile zapadni stoi w tej rundzie — jeszcze zanim padnie pytanie. */
+export function doorsInRound(state) {
+  return isFinalRound(state) ? FINAL_DOORS : 4;
+}
+
+export function isFinalRound(state) {
+  return state.roundIndex >= state.plan.length - 1;
+}
+
+/**
+ * Gracz wybiera kategorię — dopiero teraz losuje się pytanie.
+ */
+export function chooseCategory(state, category) {
+  if (state.status !== 'choosing') {
+    throw new Error('Kategorię wybiera się przed pytaniem.');
+  }
+  const candidates = availableQuestions(state).filter((q) => q.category === category);
+  if (!candidates.length) throw new Error(`Brak pytań w kategorii ${category}.`);
+
+  const rng = stageRng(state, `pytanie:${category}`);
+  const picked = shuffle(candidates, rng)[0];
+  let question = prepareQuestion(picked, rng);
+  if (isFinalRound(state)) question = trimToFinal(question, rng);
+
+  return {
+    ...state,
+    question,
+    usedIds: [...state.usedIds, picked.id],
+    bets: new Array(question.answers.length).fill(0),
+    moves: [],
+    status: 'placing',
+  };
+}
+
 export function currentQuestion(state) {
-  return state.questions[state.roundIndex];
+  return state.question;
 }
 
 export function roundSeconds(state) {
@@ -264,7 +306,25 @@ export function correctIndexes(question) {
 }
 
 /**
- * Otwiera zapadnie: zostaje tylko to, co leży na poprawnej odpowiedzi.
+ * Kolejność otwierania zapadni.
+ *
+ * Prowadzący nigdy nie otwiera wszystkich naraz. Najpierw idą pola puste —
+ * nic się nie dzieje, a napięcie rośnie. Potem te z pieniędzmi, od najmniejszej
+ * stawki. Poprawna zapadnia zostaje na koniec, więc im więcej gracz na niej
+ * postawił, tym dłużej czeka na wiadomość, że pieniądze zostały.
+ */
+export function revealOrder(state) {
+  const correct = new Set(correctIndexes(state.question));
+  const wrong = state.bets
+    .map((stake, index) => ({ stake, index }))
+    .filter(({ index }) => !correct.has(index))
+    .sort((a, b) => a.stake - b.stake || a.index - b.index)
+    .map(({ index }) => index);
+  return [...wrong, ...correct];
+}
+
+/**
+ * Zamyka rundę: na koncie zostaje tylko to, co leży na poprawnej zapadni.
  * Pieniądze wciąż trzymane w ręce (np. po upływie czasu) też lecą w dół.
  */
 export function resolve(state) {
@@ -281,8 +341,7 @@ export function resolve(state) {
   });
   const forfeited = unplaced(state);
 
-  const isLast = state.roundIndex >= state.questions.length - 1;
-  const outcome = kept === 0 ? 'lost' : isLast ? 'won' : 'continue';
+  const outcome = kept === 0 ? 'lost' : isFinalRound(state) ? 'won' : 'continue';
 
   const result = {
     correct,
@@ -303,6 +362,7 @@ export function resolve(state) {
       {
         round: state.roundIndex + 1,
         questionId: question.id,
+        category: question.category,
         bets: state.bets.slice(),
         kept,
         dropped: result.dropped,
@@ -317,13 +377,13 @@ export function advance(state) {
   if (state.outcome !== 'continue') {
     return { ...state, status: 'over' };
   }
-  const roundIndex = state.roundIndex + 1;
   return {
     ...state,
-    roundIndex,
-    bets: new Array(state.questions[roundIndex].answers.length).fill(0),
+    roundIndex: state.roundIndex + 1,
+    question: null,
+    bets: [],
     moves: [],
-    status: 'placing',
+    status: 'choosing',
     outcome: null,
     result: null,
   };

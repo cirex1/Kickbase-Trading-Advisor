@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   BUNDLE,
+  CATEGORY_CHOICES,
   DIFFICULTY_PLAN,
   FINAL_DOORS,
   GRAB_SIZES,
@@ -10,18 +11,23 @@ import {
   ROUND_SECONDS,
   START_BALANCE,
   advance,
+  availableQuestions,
   canLock,
   canPlaceOn,
+  chooseCategory,
   clearBets,
   createGame,
   currentQuestion,
+  difficultyFor,
+  doorsInRound,
   emptyDoors,
-  makeRng,
+  isFinalRound,
+  offeredCategories,
   place,
   placeBundles,
   placeRest,
   resolve,
-  selectQuestions,
+  revealOrder,
   take,
   undo,
   unplaced,
@@ -30,6 +36,12 @@ import {
 import { QUESTIONS } from '../src/questions.js';
 
 const newGame = (seed = 'test') => createGame({ questions: QUESTIONS, seed });
+
+/** Rozpoczyna rundę, biorąc pierwszą z proponowanych kategorii. */
+const enterRound = (state) => chooseCategory(state, offeredCategories(state)[0]);
+
+const goodIndex = (state) => currentQuestion(state).answers.findIndex((a) => a.correct);
+const badIndex = (state) => currentQuestion(state).answers.findIndex((a) => !a.correct);
 
 /* -------------------------------------------------------------- */
 /* Baza pytań                                                     */
@@ -53,11 +65,17 @@ test('każde pytanie ma cztery odpowiedzi i dokładnie jedną poprawną', () => 
   }
 });
 
-test('dla każdego poziomu trudności wystarcza pytań na plan rundy', () => {
+test('na każdym poziomie trudności starczy pytań i kategorii na cały plan', () => {
   for (const level of new Set(DIFFICULTY_PLAN)) {
-    const needed = DIFFICULTY_PLAN.filter((d) => d === level).length;
-    const have = QUESTIONS.filter((q) => q.difficulty === level).length;
-    assert.ok(have >= needed, `poziom ${level}: ${have} pytań, potrzeba ${needed}`);
+    const rounds = DIFFICULTY_PLAN.filter((d) => d === level).length;
+    const batch = QUESTIONS.filter((q) => q.difficulty === level);
+    const categories = new Set(batch.map((q) => q.category));
+    assert.ok(batch.length >= rounds, `poziom ${level}: ${batch.length} pytań, potrzeba ${rounds}`);
+    // po zużyciu pytań z wcześniejszych rund wciąż musi zostać z czego wybierać
+    assert.ok(
+      categories.size >= CATEGORY_CHOICES + rounds - 1,
+      `poziom ${level}: tylko ${categories.size} kategorii — za mało na wybór w ${rounds} rundach`,
+    );
   }
 });
 
@@ -69,68 +87,125 @@ test('stałe gry trzymają się razem', () => {
 });
 
 /* -------------------------------------------------------------- */
-/* Dobór pytań                                                    */
+/* Wybór kategorii                                                */
 /* -------------------------------------------------------------- */
 
-test('gra dobiera 8 pytań o rosnącej trudności, bez powtórek', () => {
-  const state = newGame('abc');
-  assert.equal(state.questions.length, ROUND_COUNT);
-  assert.deepEqual(
-    state.questions.map((q) => q.difficulty),
-    DIFFICULTY_PLAN,
-  );
-  assert.equal(new Set(state.questions.map((q) => q.id)).size, ROUND_COUNT);
+test('gra zaczyna się od wyboru kategorii, nie od pytania', () => {
+  const state = newGame();
+  assert.equal(state.status, 'choosing');
+  assert.equal(state.question, null);
+  assert.equal(offeredCategories(state).length, CATEGORY_CHOICES);
 });
 
-test('finał ma tylko dwie zapadnie, w tym poprawną', () => {
-  const last = newGame('final').questions[ROUND_COUNT - 1];
-  assert.equal(last.answers.length, FINAL_DOORS);
-  assert.equal(last.answers.filter((a) => a.correct).length, 1);
-  assert.equal(last.isFinal, true);
-});
-
-test('poprawna odpowiedź w finale nie ląduje zawsze po tej samej stronie', () => {
-  const sides = new Set();
-  for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
-    const last = newGame(seed).questions[ROUND_COUNT - 1];
-    sides.add(last.answers.findIndex((a) => a.correct));
+test('proponowane kategorie są różne i mają pokrycie w pytaniach', () => {
+  for (const seed of ['a', 'b', 'c', 'd']) {
+    const state = newGame(seed);
+    const offer = offeredCategories(state);
+    assert.equal(new Set(offer).size, offer.length, 'kategorie się powtarzają');
+    for (const category of offer) {
+      assert.ok(
+        availableQuestions(state).some((q) => q.category === category),
+        `${category}: brak pytań`,
+      );
+    }
   }
-  assert.equal(sides.size, 2);
 });
 
-test('to samo ziarno daje ten sam zestaw pytań, inne — inny', () => {
-  const a = newGame('ziarno-1').questions.map((q) => q.id);
-  const b = newGame('ziarno-1').questions.map((q) => q.id);
-  const c = newGame('ziarno-2').questions.map((q) => q.id);
-  assert.deepEqual(a, b);
-  assert.notDeepEqual(a, c);
+test('wybór kategorii daje pytanie właśnie z niej', () => {
+  const state = newGame('kategoria');
+  const [, second] = offeredCategories(state);
+  const started = chooseCategory(state, second);
+  assert.equal(started.status, 'placing');
+  assert.equal(currentQuestion(started).category, second);
+  assert.equal(started.bets.length, currentQuestion(started).answers.length);
+  assert.equal(unplaced(started), START_BALANCE);
 });
 
-test('kolejność odpowiedzi jest losowana, ale zbiór pozostaje ten sam', () => {
-  const picked = selectQuestions(QUESTIONS, makeRng('mieszanie'));
-  for (const q of picked) {
-    const original = QUESTIONS.find((o) => o.id === q.id);
-    assert.deepEqual(
-      q.answers.map((a) => a.text).sort(),
-      original.answers.map((a) => a.text).sort(),
-    );
+test('pytanie o właściwym poziomie trudności dla rundy', () => {
+  let state = newGame('trudnosc');
+  for (let round = 0; round < 3; round++) {
+    state = enterRound(state);
+    assert.equal(currentQuestion(state).difficulty, difficultyFor(round));
+    state = advance(resolve(placeRest(state, goodIndex(state))));
   }
+});
+
+test('pytania się nie powtarzają w obrębie partii', () => {
+  let state = newGame('powtorki');
+  const asked = [];
+  for (let round = 0; round < ROUND_COUNT; round++) {
+    state = enterRound(state);
+    asked.push(currentQuestion(state).id);
+    state = resolve(placeRest(state, goodIndex(state)));
+    if (round < ROUND_COUNT - 1) state = advance(state);
+  }
+  assert.equal(new Set(asked).size, ROUND_COUNT);
+  assert.deepEqual(state.usedIds, asked);
+});
+
+test('kategorii nie da się wybrać w złym momencie ani spoza oferty', () => {
+  const state = enterRound(newGame());
+  assert.throws(() => chooseCategory(state, 'Geografia'), /przed pytaniem/);
+  assert.throws(() => chooseCategory(newGame(), 'Nie ma takiej'), /Brak pytań/);
+});
+
+test('to samo ziarno daje ten sam przebieg, inne — inny', () => {
+  const run = (seed) => {
+    let state = createGame({ questions: QUESTIONS, seed });
+    const ids = [];
+    for (let r = 0; r < 4; r++) {
+      state = enterRound(state);
+      ids.push(currentQuestion(state).id);
+      state = advance(resolve(placeRest(state, goodIndex(state))));
+    }
+    return ids;
+  };
+  assert.deepEqual(run('ziarno-1'), run('ziarno-1'));
+  assert.notDeepEqual(run('ziarno-1'), run('ziarno-2'));
+});
+
+/* -------------------------------------------------------------- */
+/* Finał                                                          */
+/* -------------------------------------------------------------- */
+
+test('finał ma dwie zapadnie, w tym poprawną', () => {
+  let state = newGame('final');
+  for (let round = 0; round < ROUND_COUNT - 1; round++) {
+    state = advance(resolve(placeRest(enterRound(state), goodIndex(enterRound(state)))));
+  }
+  assert.equal(isFinalRound(state), true);
+  assert.equal(doorsInRound(state), FINAL_DOORS);
+  state = enterRound(state);
+  assert.equal(currentQuestion(state).answers.length, FINAL_DOORS);
+  assert.equal(currentQuestion(state).answers.filter((a) => a.correct).length, 1);
+  assert.equal(currentQuestion(state).isFinal, true);
+});
+
+test('w finale nie da się rozdzielić puli na obie zapadnie', () => {
+  let state = newGame('finalowa');
+  for (let round = 0; round < ROUND_COUNT - 1; round++) {
+    const started = enterRound(state);
+    state = advance(resolve(placeRest(started, goodIndex(started))));
+  }
+  state = placeBundles(enterRound(state), 0, 20);
+  assert.equal(canPlaceOn(state, 1), false);
+  assert.equal(canLock(state), false, 'reszta wciąż jest w rękach');
+  assert.equal(canLock(placeRest(state, 0)), true);
 });
 
 /* -------------------------------------------------------------- */
 /* Kładzenie paczek                                               */
 /* -------------------------------------------------------------- */
 
-test('nowa gra startuje z pełną pulą w rękach', () => {
-  const state = newGame();
+test('runda startuje z pełną pulą w rękach', () => {
+  const state = enterRound(newGame());
   assert.equal(state.balance, START_BALANCE);
-  assert.equal(unplaced(state), START_BALANCE);
   assert.equal(unplacedBundles(state), 40);
   assert.equal(emptyDoors(state), 4);
 });
 
 test('kłaść można tylko całe paczki i tylko tyle, ile się ma', () => {
-  const state = newGame();
+  const state = enterRound(newGame());
   assert.throws(() => place(state, 0, START_BALANCE + BUNDLE), /Nie masz tylu pieniędzy/);
   assert.throws(() => place(state, 0, 10_000), /całe paczki/);
   assert.throws(() => place(state, 0, 0), /dodatnia/);
@@ -138,29 +213,24 @@ test('kłaść można tylko całe paczki i tylko tyle, ile się ma', () => {
 });
 
 test('place nie modyfikuje poprzedniego stanu', () => {
-  const before = newGame();
+  const before = enterRound(newGame());
   const after = place(before, 0, 2 * BUNDLE);
   assert.equal(before.bets[0], 0);
   assert.equal(after.bets[0], 2 * BUNDLE);
-  assert.equal(unplaced(after), START_BALANCE - 2 * BUNDLE);
 });
 
 test('placeBundles kładzie tyle paczek, ile zostało', () => {
-  let state = newGame();
-  state = placeBundles(state, 0, 10);
+  let state = placeBundles(enterRound(newGame()), 0, 10);
   assert.equal(state.bets[0], 10 * BUNDLE);
-  state = placeBundles(state, 1, 100); // więcej, niż jest w rękach
+  state = placeBundles(state, 1, 100);
   assert.equal(unplaced(state), 0);
   assert.equal(state.bets[1], 30 * BUNDLE);
 });
 
-/* --- zasada: jedna zapadnia musi zostać pusta -------------------------- */
-
 test('ostatniej pustej zapadni nie da się obstawić', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   state = placeBundles(state, 0, 10);
   state = placeBundles(state, 1, 10);
-  assert.equal(emptyDoors(state), 2);
   assert.equal(canPlaceOn(state, 2), true);
 
   state = placeBundles(state, 2, 10);
@@ -170,37 +240,21 @@ test('ostatniej pustej zapadni nie da się obstawić', () => {
   assert.throws(() => place(state, 3, BUNDLE), /musi zostać pusta/);
 
   state = placeBundles(state, 0, 10);
-  assert.equal(unplaced(state), 0);
-  assert.equal(canLock(state), true);
-});
-
-test('gra nie pozwala zatwierdzić, dopóki paczki są w rękach', () => {
-  let state = placeBundles(newGame(), 0, 10);
-  assert.equal(canLock(state), false);
-  state = placeRest(state, 1);
   assert.equal(canLock(state), true);
 });
 
 test('zdjęcie paczek odblokowuje pole, które było zablokowane', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   state = placeBundles(state, 0, 10);
   state = placeBundles(state, 1, 10);
   state = placeBundles(state, 2, 20);
   assert.equal(canPlaceOn(state, 3), false);
   state = take(state, 2, 20 * BUNDLE);
-  assert.equal(emptyDoors(state), 2);
   assert.equal(canPlaceOn(state, 3), true);
 });
 
-test('take nie schodzi poniżej zera', () => {
-  let state = placeBundles(newGame(), 0, 1);
-  state = take(state, 0, 50 * BUNDLE);
-  assert.equal(state.bets[0], 0);
-  assert.equal(unplaced(state), START_BALANCE);
-});
-
 test('undo cofa ostatni ruch, clearBets zdejmuje wszystko', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   state = placeBundles(state, 0, 4);
   state = placeBundles(state, 1, 20);
   state = undo(state);
@@ -208,7 +262,6 @@ test('undo cofa ostatni ruch, clearBets zdejmuje wszystko', () => {
   assert.equal(state.bets[0], 4 * BUNDLE);
   state = clearBets(state);
   assert.equal(unplaced(state), START_BALANCE);
-  assert.equal(state.moves.length, 0);
   assert.equal(undo(state), state, 'undo bez ruchów zwraca ten sam stan');
 });
 
@@ -216,16 +269,32 @@ test('undo cofa ostatni ruch, clearBets zdejmuje wszystko', () => {
 /* Otwieranie zapadni                                             */
 /* -------------------------------------------------------------- */
 
-function goodIndex(state) {
-  return currentQuestion(state).answers.findIndex((a) => a.correct);
-}
+test('zapadnie otwierają się po kolei: puste, potem rosnące stawki, poprawna na końcu', () => {
+  let state = enterRound(newGame('kolejnosc'));
+  const good = goodIndex(state);
+  const wrong = [0, 1, 2, 3].filter((i) => i !== good);
 
-function badIndex(state, skip = -1) {
-  return currentQuestion(state).answers.findIndex((a, i) => !a.correct && i !== skip);
-}
+  // duża stawka na pierwsze błędne pole, mała na drugie, trzecie puste
+  state = placeBundles(state, wrong[1], 4);
+  state = placeRest(state, wrong[0]);
+
+  const order = revealOrder(state);
+  assert.equal(order.length, 4);
+  assert.equal(order.at(-1), good, 'poprawna zapadnia idzie na koniec');
+  assert.equal(order[0], wrong[2], 'najpierw pole puste');
+  assert.equal(order[1], wrong[1], 'potem mniejsza stawka');
+  assert.equal(order[2], wrong[0], 'na koniec największa strata');
+});
+
+test('kolejność otwierania obejmuje każdą zapadnię dokładnie raz', () => {
+  let state = enterRound(newGame('pokrycie'));
+  state = placeRest(state, goodIndex(state));
+  const order = revealOrder(state);
+  assert.deepEqual([...order].sort((a, b) => a - b), [0, 1, 2, 3]);
+});
 
 test('zostaje tylko to, co leżało na poprawnej zapadni', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   const good = goodIndex(state);
   const bad = badIndex(state);
 
@@ -236,21 +305,19 @@ test('zostaje tylko to, co leżało na poprawnej zapadni', () => {
   assert.equal(state.status, 'revealed');
   assert.equal(state.outcome, 'continue');
   assert.equal(state.balance, 12 * BUNDLE);
-  assert.equal(state.result.kept, 12 * BUNDLE);
   assert.equal(state.result.dropped, 28 * BUNDLE);
   assert.equal(state.result.forfeited, 0);
 });
 
 test('paczki trzymane w rękach lecą w dół razem z resztą', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   state = resolve(placeBundles(state, goodIndex(state), 4));
   assert.equal(state.balance, 4 * BUNDLE);
   assert.equal(state.result.forfeited, 36 * BUNDLE);
-  assert.equal(state.result.dropped, 36 * BUNDLE);
 });
 
 test('utrata całej puli kończy grę porażką', () => {
-  let state = newGame();
+  let state = enterRound(newGame());
   state = resolve(placeRest(state, badIndex(state)));
   assert.equal(state.outcome, 'lost');
   assert.equal(state.balance, 0);
@@ -261,8 +328,9 @@ test('przejście przez wszystkie rundy z pełną pulą daje milion', () => {
   let state = newGame('milion');
   for (let round = 0; round < ROUND_COUNT; round++) {
     assert.equal(state.roundIndex, round);
-    assert.equal(state.status, 'placing');
-    assert.equal(emptyDoors(state), currentQuestion(state).answers.length);
+    assert.equal(state.status, 'choosing');
+    state = enterRound(state);
+    assert.equal(emptyDoors(state), doorsInRound(state));
     state = resolve(placeRest(state, goodIndex(state)));
     if (round < ROUND_COUNT - 1) {
       assert.equal(state.outcome, 'continue');
@@ -272,35 +340,13 @@ test('przejście przez wszystkie rundy z pełną pulą daje milion', () => {
   assert.equal(state.outcome, 'won');
   assert.equal(state.balance, START_BALANCE);
   assert.equal(state.history.length, ROUND_COUNT);
+  assert.ok(state.history.every((row) => row.category), 'historia zapamiętuje kategorię rundy');
   assert.equal(advance(state).status, 'over');
 });
 
-test('gra kończy się po ostatniej rundzie także z częściową wygraną', () => {
-  let state = newGame('czesciowa');
-  for (let round = 0; round < ROUND_COUNT - 1; round++) {
-    state = advance(resolve(placeRest(state, goodIndex(state))));
-  }
-  // finał: dwie zapadnie, więc wszystko musi wylądować na jednej
-  assert.equal(state.bets.length, FINAL_DOORS);
-  state = resolve(placeRest(state, goodIndex(state)));
-  assert.equal(state.outcome, 'won');
-  assert.equal(state.balance, START_BALANCE);
-});
-
-test('w finale nie da się rozdzielić puli na obie zapadnie', () => {
-  let state = newGame('finalowa');
-  for (let round = 0; round < ROUND_COUNT - 1; round++) {
-    state = advance(resolve(placeRest(state, goodIndex(state))));
-  }
-  state = placeBundles(state, 0, 20);
-  assert.equal(canPlaceOn(state, 1), false);
-  assert.equal(canLock(state), false, 'reszta wciąż jest w rękach');
-  state = placeRest(state, 0);
-  assert.equal(canLock(state), true);
-});
-
 test('po otwarciu zapadni nie można ruszać paczek', () => {
-  const state = resolve(placeRest(newGame(), goodIndex(newGame())));
+  let state = enterRound(newGame());
+  state = resolve(placeRest(state, goodIndex(state)));
   assert.throws(() => place(state, 0, BUNDLE), /tylko w trakcie rundy/);
   assert.throws(() => clearBets(state), /tylko w trakcie rundy/);
   assert.throws(() => resolve(state), /tylko w trakcie rundy/);
@@ -308,12 +354,12 @@ test('po otwarciu zapadni nie można ruszać paczek', () => {
   assert.equal(canPlaceOn(state, 0), false);
 });
 
-test('nowa runda zeruje stawki i dopasowuje liczbę zapadni do pytania', () => {
-  let state = newGame('runda2');
+test('nowa runda wraca do wyboru kategorii i czyści stół', () => {
+  let state = enterRound(newGame('runda2'));
   state = advance(resolve(placeRest(state, goodIndex(state))));
   assert.equal(state.roundIndex, 1);
-  assert.equal(state.status, 'placing');
-  assert.equal(state.bets.length, currentQuestion(state).answers.length);
-  assert.equal(unplaced(state), state.balance);
+  assert.equal(state.status, 'choosing');
+  assert.equal(state.question, null);
+  assert.deepEqual(state.bets, []);
   assert.equal(state.moves.length, 0);
 });

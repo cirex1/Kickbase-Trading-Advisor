@@ -2,7 +2,8 @@
 
 Der polnische TV-Klassiker als Browser-Spiel — mit dem, was das Format ausmacht:
 **Falltüren.** Das Geld liegt als Bündelstapel auf den Klappen unter den Antworten. Nach dem
-Bestätigen öffnen sich die Türen unter den falschen Antworten und die Bündel stürzen in die Tiefe.
+Bestätigen öffnen sie sich **eine nach der anderen**: erst die leeren Felder, dann die mit
+wachsendem Einsatz, die richtige zuletzt.
 
 Spieloberfläche und Fragen sind polnisch, Code und Doku deutsch.
 Kein Build-Schritt, keine Abhängigkeiten, kein Framework — nur HTML, CSS und ES-Module.
@@ -12,15 +13,17 @@ Kein Build-Schritt, keine Abhängigkeiten, kein Framework — nur HTML, CSS und 
 ## Spielprinzip
 
 1. Du bekommst **40 Bündel zu je 25 000 zł** — zusammen 1 000 000 zł.
-2. Unter jeder Antwort liegt eine Falltür. Du verteilst **alle** Bündel darauf: alles auf eine
+2. Vor jeder Frage wählst du eine von **zwei Kategorien**. Die Frage fällt erst danach.
+3. Unter jeder Antwort liegt eine Falltür. Du verteilst **alle** Bündel darauf: alles auf eine
    Klappe oder abgesichert auf mehrere.
-3. **Eine Falltür muss leer bleiben** — auf alle gleichzeitig zu setzen ist nicht erlaubt. Das
+4. **Eine Falltür muss leer bleiben** — auf alle gleichzeitig zu setzen ist nicht erlaubt. Das
    Spiel blockiert das letzte freie Feld automatisch.
-4. Bestätigt wird mit **Zatwierdzam**. Kurze Stille, dann klappen die Türen unter den falschen
-   Antworten auf und das Geld fällt.
-5. Läuft die Zeit ab, wird automatisch abgerechnet — Bündel, die noch in der Hand liegen, fallen
+5. Bestätigt wird mit **Zatwierdzam**. Kurze Stille, dann geht Klappe für Klappe auf — im
+   Scheinwerfer, mit dem laufenden Betrag, der bei jedem Sturz mitzählt. Die Animation lässt
+   sich mit *Pokaż wynik* oder `Enter` überspringen.
+6. Läuft die Zeit ab, wird automatisch abgerechnet — Bündel, die noch in der Hand liegen, fallen
    mit.
-6. Acht Runden. Im **Finale** bleiben nur zwei Falltüren, also alles auf eine Antwort.
+7. Acht Runden. Im **Finale** bleiben nur zwei Falltüren, also alles auf eine Antwort.
    Bei 0 zł ist Schluss.
 
 Zeitlimit pro Runde: 90 s zu Beginn, 50 s im Finale.
@@ -69,7 +72,7 @@ index.html                  Grundgerüst, alle drei Screens (Start / Spiel / End
 assets/css/style.css        komplettes Styling inkl. der 3D-Bühne mit den Falltüren
 src/engine.js               Spiellogik: Bündel, Einsätze, Abrechnung (pure functions)
 src/questions.js            Fragenkatalog
-src/app.js                  Verbindung Logik ↔ DOM, Timer, Falltür-Choreografie, Tastatur
+src/app.js                  Verbindung Logik ↔ DOM, Timer, Türöffnungs-Choreografie, Tastatur
 src/audio.js                Sounds, komplett per Web Audio API erzeugt (keine Dateien)
 src/confetti.js             Konfetti auf dem Endscreen
 src/storage.js              gekapselter localStorage-Zugriff (Privatmodus wirft sonst)
@@ -112,8 +115,11 @@ Ein Eintrag in `src/questions.js` genügt:
 
 * Genau **vier** Antworten, davon **genau eine** richtige.
 * Die Reihenfolge wird im Spiel gemischt.
-* Pro Schwierigkeitsgrad zieht eine Partie bis zu zwei Fragen — es sollten also mindestens zwei
-  je Stufe vorhanden sein. `npm test` prüft all das.
+* Weil vor jeder Frage zwei Kategorien zur Wahl stehen, braucht jede Schwierigkeitsstufe
+  Fragen aus **mehreren Kategorien** — sonst hätte die Auswahl nichts anzubieten. `npm test`
+  rechnet nach, ob genug übrig bleibt, wenn frühere Runden schon Fragen verbraucht haben.
+* Gute Fragen prüfen nicht das Gedächtnis, sondern den Reflex: der Tag auf der Venus ist länger
+  als ihr Jahr, der Februar 2100 hat 28 Tage, der nächste Verwandte des Flusspferds ist der Wal.
 
 ## Spielcode (Seed)
 
@@ -130,11 +136,12 @@ Gleicher Code → gleiche Partie. Praktisch, um sich mit jemandem zu messen.
 
 | Taste | Wirkung |
 | --- | --- |
+| `1`, `2` | Kategorie wählen (auf dem Auswahlbildschirm) |
 | `1`–`4` | wie viele Bündel auf einmal (25 000 / 50 000 / 100 000 / 250 000 zł) |
 | `A`–`D` | Bündel auf diese Falltür legen |
 | `Shift` + `A`–`D` | den ganzen Rest auf eine Falltür |
 | `Backspace` | letzten Zug zurücknehmen |
-| `Enter` | Runde bestätigen bzw. weiter |
+| `Enter` | Runde bestätigen, Türöffnung überspringen, weiter |
 
 ## Deployment
 
@@ -145,7 +152,18 @@ Repository-Einstellungen auf *GitHub Actions* gestellt ist.
 > Hinweis: Für **private** Repositories setzt GitHub Pages einen kostenpflichtigen Plan voraus.
 > In einem privaten Repo läuft das Spiel lokal — oder das Repo auf öffentlich stellen.
 
+## Bildmarke
+
+Der Schriftzug über dem Geldkoffer ist vollständig in CSS gebaut (`.mark` in `style.css`) — eine
+eigene Nachempfindung im Stil einer TV-Titelkarte, kein Asset der Produktion. Ein einziger
+Komponentenbaum bedient Kopfzeile und Startbildschirm; skaliert wird über `--mark`:
+
+```css
+.mark--small { --mark: 0.62; }   /* Kopfzeile */
+.mark--hero  { --mark: 1.55; }   /* Startbildschirm */
+```
+
 ## Lizenz
 
-MIT, siehe [LICENSE](LICENSE). Das Spielformat ist an den Fernseh-Teleturniej angelehnt;
-Fragen und Code sind eigenständig und ohne Bezug zur Produktion entstanden.
+MIT, siehe [LICENSE](LICENSE). Fanprojekt: Das Spielformat ist an den Fernseh-Teleturniej
+angelehnt, Fragen, Grafik und Code sind eigenständig und ohne Bezug zur Produktion entstanden.

@@ -6,10 +6,10 @@
     <title>Postaw na milion</title>
     <meta
       name="description"
-      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w paczkach, osiem pytań i zapadnie, które otwierają się pod błędnymi odpowiedziami."
+      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w paczkach, osiem pytań i zapadnie, które otwierają się jedna po drugiej."
     />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#07061a" />
+    <meta name="theme-color" content="#05040f" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0a1f'/%3E%3Crect x='4' y='9' width='24' height='7' rx='1.5' fill='%23ffc247'/%3E%3Crect x='6' y='17' width='20' height='5' rx='1' fill='%23ff9d1e'/%3E%3Cpath d='M3 25h26' stroke='%23ffc247' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
@@ -136,20 +136,155 @@ body {
   flex-wrap: wrap;
 }
 
-.logo {
-  margin: 0;
-  font-size: var(--step-1);
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+/* ===================================================================== */
+/* ZNAK GRAFICZNY                                                        */
+/*                                                                       */
+/* Skrzynia pełna paczek banknotów, nad nią biały napis wytłoczony        */
+/* w trzech wymiarach. Wszystko rysowane w CSS, więc jeden komponent      */
+/* obsługuje i nagłówek, i ekran startowy — różni je tylko --mark.        */
+/* ===================================================================== */
+
+.mark {
+  --mark: 1; /* mnożnik rozmiaru */
+  position: relative;
+  flex: none;
+  width: calc(210px * var(--mark));
+  height: calc(96px * var(--mark));
+  display: grid;
+  place-items: center;
+  perspective: calc(560px * var(--mark));
 }
 
-.logo span {
-  background: linear-gradient(180deg, #fff6d8, var(--gold) 45%, var(--gold-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 26px rgba(255, 178, 46, 0.35);
+.mark--small {
+  --mark: 0.62;
+}
+
+.mark--hero {
+  --mark: 1.55;
+}
+
+/* --- skrzynia z pieniędzmi ------------------------------------------- */
+
+.mark__case {
+  position: absolute;
+  inset: calc(14px * var(--mark)) 0 calc(6px * var(--mark));
+  border-radius: calc(4px * var(--mark));
+  transform: rotateX(20deg) rotateZ(-3deg);
+  transform-style: preserve-3d;
+  box-shadow:
+    0 calc(16px * var(--mark)) calc(34px * var(--mark)) rgba(0, 0, 0, 0.55),
+    inset 0 0 0 calc(2px * var(--mark)) rgba(255, 255, 255, 0.4);
+  background: rgba(210, 220, 235, 0.14);
+  overflow: hidden;
+}
+
+/* rzędy paczek — pasy banknotów widziane z góry */
+.mark__cash {
+  position: absolute;
+  inset: calc(3px * var(--mark));
+  border-radius: calc(2px * var(--mark));
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #cfd6e4 0,
+      #eef2f8 calc(5px * var(--mark)),
+      #b9c2d4 calc(9px * var(--mark)),
+      #cfd6e4 calc(11px * var(--mark))
+    ),
+    linear-gradient(180deg, #e7ecf5, #aab4c8);
+  opacity: 0.85;
+}
+
+/* czerwone banderole spinające paczki */
+.mark__bands {
+  position: absolute;
+  inset: calc(3px * var(--mark));
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(24px * var(--mark)),
+    #c8112a calc(24px * var(--mark)),
+    #e8283f calc(31px * var(--mark)),
+    transparent calc(31px * var(--mark)),
+    transparent calc(55px * var(--mark))
+  );
+  opacity: 0.92;
+}
+
+/* pleksi: odblask i krawędź */
+.mark__glass {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(4px * var(--mark));
+  background: linear-gradient(
+    118deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.06) 26%,
+    transparent 46%,
+    rgba(255, 255, 255, 0.16) 70%,
+    transparent 86%
+  );
+  box-shadow: inset 0 0 calc(20px * var(--mark)) rgba(255, 255, 255, 0.28);
+}
+
+/* --- napis ------------------------------------------------------------ */
+
+.mark__lines {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.88;
+  text-transform: uppercase;
+  color: #fff;
+  font-family: 'Arial Black', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  font-weight: 900;
+  font-stretch: condensed;
+  transform: rotateX(12deg) rotateZ(-3deg);
+  /* wytłoczenie: kolejne warstwy cienia budują ściankę liter */
+  text-shadow:
+    calc(1px * var(--mark)) calc(1px * var(--mark)) 0 #b9c0cc,
+    calc(2px * var(--mark)) calc(2px * var(--mark)) 0 #a7aeba,
+    calc(3px * var(--mark)) calc(3px * var(--mark)) 0 #949ba7,
+    calc(4px * var(--mark)) calc(4px * var(--mark)) 0 #838a96,
+    calc(5px * var(--mark)) calc(5px * var(--mark)) 0 #727984,
+    calc(6px * var(--mark)) calc(7px * var(--mark)) calc(10px * var(--mark)) rgba(0, 0, 0, 0.65);
+}
+
+.mark__top {
+  font-size: calc(22px * var(--mark));
+  letter-spacing: calc(1.5px * var(--mark));
+}
+
+.mark__big {
+  font-size: calc(50px * var(--mark));
+  letter-spacing: calc(-1px * var(--mark));
+}
+
+/* snop światła zza znaku — tylko na ekranie startowym */
+.mark__beam {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(560px * var(--mark));
+  height: calc(360px * var(--mark));
+  translate: -50% -50%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(255, 194, 71, 0.3), transparent 72%);
+  filter: blur(calc(6px * var(--mark)));
+}
+
+.mark--hero {
+  animation: mark-land 0.9s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes mark-land {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(1.14);
+  }
 }
 
 .topbar__actions {
@@ -254,41 +389,32 @@ input:focus-visible {
 /* Ekran startowy                                                        */
 /* --------------------------------------------------------------------- */
 
-.panel--intro {
+.intro {
   margin: auto;
   width: min(100%, 720px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
   text-align: center;
-}
-
-.intro__eyebrow {
-  margin: 0;
-  color: var(--gold);
-  letter-spacing: 0.4em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-}
-
-.intro__title {
-  margin: 0.35rem 0 0.8rem;
-  font-size: var(--step-3);
-  line-height: 1.1;
-  font-weight: 800;
 }
 
 .intro__lead {
   margin: 0 auto;
-  max-width: 48ch;
+  max-width: 46ch;
   color: var(--ink-dim);
+  animation: fade-in 0.5s 0.5s ease both;
 }
 
 .steps {
   display: grid;
   gap: 0.5rem;
-  margin: 1.6rem auto;
+  margin: 0 auto;
   padding: 0;
-  max-width: 36rem;
+  width: min(100%, 36rem);
   list-style: none;
   counter-reset: step;
+  animation: fade-in 0.5s 0.65s ease both;
   text-align: left;
 }
 
@@ -439,6 +565,10 @@ input:focus-visible {
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   font-size: 1.1rem;
+}
+
+.hud__cell--timer.is-off {
+  opacity: 0.35;
 }
 
 .hud__cell--timer.is-urgent .ring__fg {
@@ -1165,7 +1295,7 @@ input:focus-visible {
 
 .summary__row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 0.8rem;
   align-items: baseline;
   padding: 0.35rem 0.7rem;
@@ -1176,6 +1306,14 @@ input:focus-visible {
 
 .summary__round {
   color: var(--ink-dim);
+}
+
+.summary__category {
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .summary__kept {
@@ -1278,6 +1416,192 @@ kbd {
 }
 
 /* --------------------------------------------------------------------- */
+/* Plansza rundy                                                         */
+/* --------------------------------------------------------------------- */
+
+.bumper {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  gap: 0.2rem;
+  text-align: center;
+  background: linear-gradient(90deg, transparent, rgba(6, 4, 20, 0.94) 12% 88%, transparent);
+}
+
+.bumper.is-running {
+  animation: bumper-sweep 1.5s cubic-bezier(0.3, 0.8, 0.2, 1) both;
+}
+
+.bumper__round {
+  font-size: var(--step-3);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bumper__stake {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+}
+
+@keyframes bumper-sweep {
+  0% {
+    opacity: 0;
+    clip-path: inset(45% 100% 45% 0);
+  }
+  22% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  78% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(45% 0 45% 100%);
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Wybór kategorii                                                       */
+/* --------------------------------------------------------------------- */
+
+.choice {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.choice__eyebrow {
+  margin: 0;
+  color: var(--gold);
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.choice__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 0.7rem;
+  width: min(100%, 640px);
+}
+
+.choice__card {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.85rem 1.1rem;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, rgba(46, 32, 94, 0.85), rgba(14, 9, 34, 0.85));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  animation: fade-in 0.35s calc(var(--i, 0) * 90ms) ease both;
+}
+
+.choice__card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: 0 0 26px rgba(255, 194, 71, 0.3);
+}
+
+.choice__card:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-shadow);
+}
+
+.choice__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.choice__name {
+  font-size: var(--step-1);
+  font-weight: 800;
+}
+
+/* Scena czeka na pytanie: zapadnie stoją, ekrany są jeszcze wygaszone. */
+.stage.is-idle .lane__panel {
+  opacity: 0.3;
+}
+
+.stage.is-idle .lane__letter {
+  opacity: 0.5;
+}
+
+/* --------------------------------------------------------------------- */
+/* Pasek w trakcie otwierania zapadni                                    */
+/* --------------------------------------------------------------------- */
+
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+}
+
+.waiting__text {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn--sm {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.85rem;
+}
+
+/* Pole tuż przed otwarciem — reflektor prowadzącego. */
+.lane.is-next .lane__panel {
+  border-color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 30px rgba(255, 255, 255, 0.45);
+  animation: spotlight 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes spotlight {
+  to {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 0 46px rgba(255, 255, 255, 0.75);
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Stopka                                                                */
+/* --------------------------------------------------------------------- */
+
+.colophon {
+  margin: 0;
+  text-align: center;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: rgba(168, 159, 208, 0.45);
+}
+
+/* --------------------------------------------------------------------- */
 /* Małe ekrany                                                           */
 /* --------------------------------------------------------------------- */
 
@@ -1348,7 +1672,22 @@ kbd {
 
     <div class="app">
       <header class="topbar">
-        <p class="logo">Postaw na <span>milion</span></p>
+        <!-- Znak graficzny: skrzynia z paczkami banknotów i biały napis
+             wytłoczony nad nią. Rysowany w CSS, więc skaluje się bez utraty
+             ostrości — ten sam komponent służy w nagłówku i na ekranie
+             startowym, różni je tylko --mark-size. -->
+        <div class="mark mark--small" role="img" aria-label="Postaw na milion">
+          <div class="mark__case" aria-hidden="true">
+            <div class="mark__cash"></div>
+            <div class="mark__bands"></div>
+            <div class="mark__glass"></div>
+          </div>
+          <p class="mark__lines" aria-hidden="true">
+            <span class="mark__top">Postaw na</span>
+            <span class="mark__big">Milion</span>
+          </p>
+        </div>
+
         <div class="topbar__actions">
           <button id="btn-rules" class="btn btn--ghost" type="button">Zasady</button>
           <button id="btn-sound" class="btn btn--ghost" type="button" aria-pressed="true">🔊 Dźwięk</button>
@@ -1359,17 +1698,28 @@ kbd {
       <!-- Ekran startowy                                             -->
       <!-- ---------------------------------------------------------- -->
       <section id="screen-start" class="screen">
-        <div class="panel panel--intro">
-          <p class="intro__eyebrow">Teleturniej</p>
-          <h1 class="intro__title">Milion złotych.<br />Cztery zapadnie.</h1>
+        <div class="intro">
+          <div class="mark mark--hero" role="img" aria-label="Postaw na milion">
+            <div class="mark__beam" aria-hidden="true"></div>
+            <div class="mark__case" aria-hidden="true">
+              <div class="mark__cash"></div>
+              <div class="mark__bands"></div>
+              <div class="mark__glass"></div>
+            </div>
+            <p class="mark__lines" aria-hidden="true">
+              <span class="mark__top">Postaw na</span>
+              <span class="mark__big">Milion</span>
+            </p>
+          </div>
+
           <p class="intro__lead">
-            Dostajesz czterdzieści paczek po 25 000 zł. Kładziesz je na zapadniach z odpowiedziami —
-            a potem te pod błędnymi polami otwierają się i pieniądze lecą w dół.
+            Czterdzieści paczek po 25 000 zł. Osiem pytań. Pod każdą odpowiedzią zapadnia —
+            a te pod błędnymi otwierają się jedna po drugiej.
           </p>
 
           <ol class="steps">
+            <li><strong>Wybierz</strong> jedną z dwóch kategorii.</li>
             <li><strong>Rozłóż</strong> wszystkie paczki, ale jedno pole zostaw puste.</li>
-            <li><strong>Zatwierdź</strong>, zanim skończy się czas.</li>
             <li><strong>Zabierz</strong> to, co nie spadło — i graj dalej.</li>
           </ol>
 
@@ -1408,7 +1758,13 @@ kbd {
           </div>
         </div>
 
-        <div class="question">
+        <!-- Wybór kategorii — zajmuje miejsce pytania, zanim ono padnie -->
+        <div id="choice" class="choice" hidden>
+          <p class="choice__eyebrow">Wybierz kategorię</p>
+          <div id="choice-cards" class="choice__cards"></div>
+        </div>
+
+        <div id="question" class="question" hidden>
           <span id="q-category" class="question__category">Geografia</span>
           <h2 id="q-text" class="question__text">&nbsp;</h2>
           <p id="q-final" class="question__final" hidden>
@@ -1421,6 +1777,10 @@ kbd {
           <div class="stage__void" aria-hidden="true"></div>
           <div id="floor" class="floor" aria-hidden="true"></div>
           <div id="lanes" class="lanes"></div>
+          <div id="bumper" class="bumper" aria-hidden="true" hidden>
+            <span id="bumper-round" class="bumper__round">Runda 1</span>
+            <span id="bumper-stake" class="bumper__stake">1 000 000 zł</span>
+          </div>
         </div>
 
         <!-- Taca i podsumowanie dzielą to samo miejsce, żeby scena nie skakała. -->
@@ -1432,7 +1792,12 @@ kbd {
             <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
           </div>
 
-          <div id="tray" class="tray">
+          <div id="waiting" class="waiting" hidden>
+            <p id="waiting-text" class="waiting__text">Zapadnie otwierają się…</p>
+            <button id="btn-skip" class="btn btn--ghost btn--sm" type="button">Pokaż wynik</button>
+          </div>
+
+          <div id="tray" class="tray" hidden>
             <div class="tray__hand">
               <div id="hand-stack" class="hand__stack" aria-hidden="true"></div>
               <div class="hand__info">
@@ -1471,13 +1836,19 @@ kbd {
           </div>
         </div>
       </section>
+
+      <p class="colophon">
+        Gra fanowska. Powstała dla zabawy, bez związku z produkcją telewizyjną.
+      </p>
     </div>
 
     <dialog id="rules-dialog" class="rules">
       <h2>Zasady</h2>
       <ul>
+        <li>Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.</li>
         <li>
-          Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.
+          Przed każdym pytaniem dostajesz <strong>dwie kategorie</strong> do wyboru. Pytanie pada
+          dopiero po wyborze.
         </li>
         <li>
           Pod każdą odpowiedzią jest <strong>zapadnia</strong>. Kładziesz na nich wszystkie paczki:
@@ -1487,8 +1858,8 @@ kbd {
           <strong>Jedna zapadnia musi zostać pusta</strong> — na wszystkie naraz postawić się nie da.
         </li>
         <li>
-          Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami się otwierają. To, co na nich leżało,
-          leci w dół i nie wraca.
+          Po zatwierdzeniu zapadnie otwierają się <strong>po kolei</strong>: najpierw puste, potem
+          te z coraz większą stawką. Poprawna zostaje na koniec.
         </li>
         <li>
           Zatwierdzić można dopiero po rozłożeniu wszystkich paczek. Jeśli skończy się czas, runda
@@ -1506,7 +1877,7 @@ kbd {
         <li><kbd>A</kbd>–<kbd>D</kbd> położenie paczek na zapadni</li>
         <li><kbd>Shift</kbd> + <kbd>A</kbd>–<kbd>D</kbd> cała reszta na jedno pole</li>
         <li><kbd>Backspace</kbd> cofnięcie ostatniego ruchu</li>
-        <li><kbd>Enter</kbd> zatwierdzenie rundy / przejście dalej</li>
+        <li><kbd>Enter</kbd> zatwierdzenie rundy, pominięcie animacji, przejście dalej</li>
       </ul>
       <button id="btn-rules-close" class="btn btn--gold" type="button">Rozumiem</button>
     </dialog>
@@ -1546,9 +1917,10 @@ function writeSetting(key, value) {
 /**
  * Silnik gry "Postaw na milion".
  *
- * Zasady wzorowane na teleturnieju: pieniądze leżą w paczkach na zapadniach.
- * Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami otwierają się i paczki
- * lecą w dół. Zostaje tylko to, co leżało na poprawnym polu.
+ * Przebieg rundy:
+ *   'choosing' → gracz dostaje dwie kategorie do wyboru
+ *   'placing'  → pada pytanie, gracz rozkłada paczki na zapadniach
+ *   'revealed' → zapadnie otwierają się po kolei, pieniądze lecą w dół
  *
  * Moduł jest czysty (bez DOM, bez efektów ubocznych) i deterministyczny przy
  * podanym ziarnie losowości — dzięki temu da się go testować w Node.
@@ -1569,6 +1941,9 @@ const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
 
 /** Poziom trudności pytania w kolejnych rundach. */
 const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+
+/** Ile kategorii dostaje gracz do wyboru przed pytaniem. */
+const CATEGORY_CHOICES = 2;
 
 /** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
 const FINAL_DOORS = 2;
@@ -1613,42 +1988,47 @@ function shuffle(list, rng) {
   return out;
 }
 
+/**
+ * Losowość wywodzona z ziarna i etapu gry, zamiast jednego generatora
+ * przesuwanego w czasie. Dzięki temu stan pozostaje zwykłym obiektem —
+ * da się go porównać, zapisać i odtworzyć.
+ */
+function stageRng(state, stage) {
+  return makeRng(`${state.seed}#${state.roundIndex}#${stage}`);
+}
+
 /* ------------------------------------------------------------------ *
  * Dobór pytań
  * ------------------------------------------------------------------ */
 
+function difficultyFor(roundIndex, plan = DIFFICULTY_PLAN) {
+  return plan[Math.min(roundIndex, plan.length - 1)];
+}
+
 /**
- * Wybiera po jednym pytaniu na rundę zgodnie z DIFFICULTY_PLAN.
- * Gdy w danym poziomie zabraknie pytań, sięga po najbliższy dostępny poziom.
- * Kolejność odpowiedzi w każdym pytaniu jest losowana.
+ * Pytania dostępne w danej rundzie: o właściwej trudności i jeszcze niezadane.
+ * Gdy pula na danym poziomie się wyczerpie, sięgamy po poziom najbliższy.
  */
-function selectQuestions(questions, rng, plan = DIFFICULTY_PLAN) {
-  const pools = new Map();
-  for (const q of questions) {
-    if (!pools.has(q.difficulty)) pools.set(q.difficulty, []);
-    pools.get(q.difficulty).push(q);
+function availableQuestions(state) {
+  const wanted = difficultyFor(state.roundIndex, state.plan);
+  const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
+  const levels = [...new Set(unused.map((q) => q.difficulty))].sort(
+    (a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b,
+  );
+  for (const level of levels) {
+    const batch = unused.filter((q) => q.difficulty === level);
+    if (batch.length) return batch;
   }
-  for (const [level, pool] of pools) pools.set(level, shuffle(pool, rng));
+  return [];
+}
 
-  const levels = [...pools.keys()].sort((a, b) => a - b);
-  const picked = [];
-
-  for (const wanted of plan) {
-    const order = levels
-      .slice()
-      .sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b);
-    let question = null;
-    for (const level of order) {
-      const pool = pools.get(level);
-      if (pool && pool.length) {
-        question = pool.pop();
-        break;
-      }
-    }
-    if (!question) throw new Error('Za mało pytań w bazie, aby rozpocząć grę.');
-    picked.push(prepareQuestion(question, rng));
-  }
-  return picked;
+/**
+ * Dwie kategorie do wyboru. Jeśli na danym poziomie została tylko jedna,
+ * gracz dostaje ją samą — wybór bez alternatywy nadal jest poprawną rundą.
+ */
+function offeredCategories(state) {
+  const categories = [...new Set(availableQuestions(state).map((q) => q.category))];
+  return shuffle(categories, stageRng(state, 'kategorie')).slice(0, CATEGORY_CHOICES);
 }
 
 /** Kopiuje pytanie z potasowanymi odpowiedziami. */
@@ -1683,27 +2063,60 @@ function createGame({
   startBalance = START_BALANCE,
   plan = DIFFICULTY_PLAN,
 } = {}) {
-  const rng = makeRng(seed);
-  const selected = selectQuestions(questions, rng, plan);
-  selected[selected.length - 1] = trimToFinal(selected[selected.length - 1], rng);
-
   return {
     seed: String(seed),
+    plan,
+    pool: questions,
     startBalance,
     balance: startBalance,
     roundIndex: 0,
-    questions: selected,
-    bets: new Array(selected[0].answers.length).fill(0),
+    usedIds: [],
+    question: null,
+    bets: [],
     moves: [],
-    status: 'placing', // 'placing' | 'revealed' | 'over'
+    status: 'choosing', // 'choosing' | 'placing' | 'revealed' | 'over'
     outcome: null, // 'continue' | 'lost' | 'won'
     result: null,
     history: [],
   };
 }
 
+/** Ile zapadni stoi w tej rundzie — jeszcze zanim padnie pytanie. */
+function doorsInRound(state) {
+  return isFinalRound(state) ? FINAL_DOORS : 4;
+}
+
+function isFinalRound(state) {
+  return state.roundIndex >= state.plan.length - 1;
+}
+
+/**
+ * Gracz wybiera kategorię — dopiero teraz losuje się pytanie.
+ */
+function chooseCategory(state, category) {
+  if (state.status !== 'choosing') {
+    throw new Error('Kategorię wybiera się przed pytaniem.');
+  }
+  const candidates = availableQuestions(state).filter((q) => q.category === category);
+  if (!candidates.length) throw new Error(`Brak pytań w kategorii ${category}.`);
+
+  const rng = stageRng(state, `pytanie:${category}`);
+  const picked = shuffle(candidates, rng)[0];
+  let question = prepareQuestion(picked, rng);
+  if (isFinalRound(state)) question = trimToFinal(question, rng);
+
+  return {
+    ...state,
+    question,
+    usedIds: [...state.usedIds, picked.id],
+    bets: new Array(question.answers.length).fill(0),
+    moves: [],
+    status: 'placing',
+  };
+}
+
 function currentQuestion(state) {
-  return state.questions[state.roundIndex];
+  return state.question;
 }
 
 function roundSeconds(state) {
@@ -1809,7 +2222,25 @@ function correctIndexes(question) {
 }
 
 /**
- * Otwiera zapadnie: zostaje tylko to, co leży na poprawnej odpowiedzi.
+ * Kolejność otwierania zapadni.
+ *
+ * Prowadzący nigdy nie otwiera wszystkich naraz. Najpierw idą pola puste —
+ * nic się nie dzieje, a napięcie rośnie. Potem te z pieniędzmi, od najmniejszej
+ * stawki. Poprawna zapadnia zostaje na koniec, więc im więcej gracz na niej
+ * postawił, tym dłużej czeka na wiadomość, że pieniądze zostały.
+ */
+function revealOrder(state) {
+  const correct = new Set(correctIndexes(state.question));
+  const wrong = state.bets
+    .map((stake, index) => ({ stake, index }))
+    .filter(({ index }) => !correct.has(index))
+    .sort((a, b) => a.stake - b.stake || a.index - b.index)
+    .map(({ index }) => index);
+  return [...wrong, ...correct];
+}
+
+/**
+ * Zamyka rundę: na koncie zostaje tylko to, co leży na poprawnej zapadni.
  * Pieniądze wciąż trzymane w ręce (np. po upływie czasu) też lecą w dół.
  */
 function resolve(state) {
@@ -1826,8 +2257,7 @@ function resolve(state) {
   });
   const forfeited = unplaced(state);
 
-  const isLast = state.roundIndex >= state.questions.length - 1;
-  const outcome = kept === 0 ? 'lost' : isLast ? 'won' : 'continue';
+  const outcome = kept === 0 ? 'lost' : isFinalRound(state) ? 'won' : 'continue';
 
   const result = {
     correct,
@@ -1848,6 +2278,7 @@ function resolve(state) {
       {
         round: state.roundIndex + 1,
         questionId: question.id,
+        category: question.category,
         bets: state.bets.slice(),
         kept,
         dropped: result.dropped,
@@ -1862,13 +2293,13 @@ function advance(state) {
   if (state.outcome !== 'continue') {
     return { ...state, status: 'over' };
   }
-  const roundIndex = state.roundIndex + 1;
   return {
     ...state,
-    roundIndex,
-    bets: new Array(state.questions[roundIndex].answers.length).fill(0),
+    roundIndex: state.roundIndex + 1,
+    question: null,
+    bets: [],
     moves: [],
-    status: 'placing',
+    status: 'choosing',
     outcome: null,
     result: null,
   };
@@ -1885,56 +2316,103 @@ function isOver(state) {
  * Format jednego pytania:
  *   {
  *     id:         unikalny identyfikator (string),
- *     category:   nazwa kategorii pokazywana nad pytaniem,
+ *     category:   kategoria — gra proponuje przed rundą dwie do wyboru,
  *     difficulty: 1-5 (1 = najłatwiejsze),
  *     text:       treść pytania,
  *     answers:    dokładnie 4 odpowiedzi (tyle jest zapadni), jedna poprawna,
  *     note:       krótkie wyjaśnienie pokazywane po otwarciu zapadni
  *   }
  *
- * Zasada przy układaniu pytań: wszystkie cztery odpowiedzi mają brzmieć
- * sensownie. Pytanie jest dobre wtedy, gdy nie da się odsiać trzech błędnych
- * jednym spojrzeniem — dopiero wtedy rozkładanie paczek ma sens.
+ * Dwie zasady przy układaniu pytań:
  *
- * Kolejność odpowiedzi jest losowana w trakcie gry, więc można je wpisywać
- * w dowolnym porządku.
+ * 1. Wszystkie cztery odpowiedzi mają brzmieć sensownie. Pytanie jest dobre
+ *    wtedy, gdy nie da się odsiać trzech błędnych jednym spojrzeniem.
+ * 2. Najlepsze pytanie nie sprawdza pamięci, tylko odruch. Pyta o rzecz
+ *    pozornie oczywistą, przy której pierwsza myśl prowadzi w bok:
+ *    doba na Wenus jest dłuższa niż rok, luty 2100 ma 28 dni, a najbliższym
+ *    krewnym hipopotama jest wieloryb.
+ *
+ * Ponieważ gracz wybiera kategorię, każdy poziom trudności musi mieć pytania
+ * w co najmniej kilku kategoriach — pilnuje tego test w tests/engine.test.js.
  */
 
 const QUESTIONS = [
   /* ============================ poziom 1 ============================ */
   {
-    id: 'przyr-nie-ssak',
-    category: 'Przyroda',
-    difficulty: 1,
-    text: 'Które z tych zwierząt NIE jest ssakiem?',
-    answers: [
-      { text: 'Rekin', correct: true },
-      { text: 'Delfin' },
-      { text: 'Wieloryb' },
-      { text: 'Nietoperz' },
-    ],
-    note: 'Rekin to ryba. Delfin i wieloryb są ssakami morskimi, a nietoperz — jedynym ssakiem, który naprawdę lata.',
-  },
-  {
-    id: 'geo-sasiedzi-polski',
+    id: 'geo-najdalej-wschod',
     category: 'Geografia',
     difficulty: 1,
-    text: 'Które z tych państw NIE graniczy z Polską?',
+    text: 'Które z tych miast leży najdalej na wschód?',
     answers: [
-      { text: 'Węgry', correct: true },
-      { text: 'Litwa' },
-      { text: 'Słowacja' },
-      { text: 'Białoruś' },
+      { text: 'Helsinki', correct: true },
+      { text: 'Warszawa' },
+      { text: 'Wiedeń' },
+      { text: 'Praga' },
     ],
-    note: 'Polska ma siedmiu sąsiadów. Węgry są od nas oddzielone Słowacją — mimo przysłowia o dwóch bratankach.',
+    note: 'Helsinki leżą na 25°E, Warszawa na 21°E. Wiedeń i Praga są jeszcze dalej na zachód niż Warszawa.',
   },
   {
-    id: 'sport-siatkowka',
+    id: 'hist-123-lata',
+    category: 'Historia',
+    difficulty: 1,
+    text: 'Ile lat Polski nie było na mapie — od trzeciego rozbioru do odzyskania niepodległości?',
+    answers: [{ text: '123', correct: true }, { text: '99' }, { text: '111' }, { text: '146' }],
+    note: 'Od 1795 do 1918 roku. Liczba 123 weszła do języka jako symbol zaborów.',
+  },
+  {
+    id: 'jez-na-pewno',
+    category: 'Język polski',
+    difficulty: 1,
+    text: 'Który zapis jest poprawny?',
+    answers: [
+      { text: 'na pewno', correct: true },
+      { text: 'napewno' },
+      { text: 'na-pewno' },
+      { text: 'na pewno się pisze łącznie' },
+    ],
+    note: 'Zawsze rozdzielnie. „Napewno” to jeden z najczęstszych błędów w polszczyźnie.',
+  },
+  {
+    id: 'nauka-pierze-olow',
+    category: 'Nauka',
+    difficulty: 1,
+    text: 'Co waży więcej: kilogram pierza czy kilogram ołowiu?',
+    answers: [
+      { text: 'Ważą tyle samo', correct: true },
+      { text: 'Ołów' },
+      { text: 'Pierze' },
+      { text: 'Zależy od objętości' },
+    ],
+    note: 'Kilogram to kilogram. Różni się objętość, nie masa — i na tym właśnie żeruje to pytanie.',
+  },
+  {
+    id: 'przyr-nogi-pajaka',
+    category: 'Przyroda',
+    difficulty: 1,
+    text: 'Ile PAR nóg ma pająk?',
+    answers: [{ text: '4', correct: true }, { text: '3' }, { text: '6' }, { text: '8' }],
+    note: 'Osiem nóg, czyli cztery pary. Trzy pary ma owad — i dlatego pająk owadem nie jest.',
+  },
+  {
+    id: 'sport-dogrywka',
     category: 'Sport',
     difficulty: 1,
-    text: 'Ilu zawodników jednej drużyny znajduje się na boisku w siatkówce?',
-    answers: [{ text: '6', correct: true }, { text: '5' }, { text: '7' }, { text: '4' }],
-    note: 'Sześciu — trzech w linii ataku i trzech w obronie. Pięciu gra w koszykówce.',
+    text: 'Ile minut trwa dogrywka w meczu piłki nożnej?',
+    answers: [{ text: '30', correct: true }, { text: '20' }, { text: '15' }, { text: '45' }],
+    note: 'Dwie połowy po 15 minut, bez przerwy na zmianę stron dłuższej niż chwila.',
+  },
+  {
+    id: 'muz-najwiecej-strun',
+    category: 'Muzyka',
+    difficulty: 1,
+    text: 'Który z tych instrumentów ma najwięcej strun?',
+    answers: [
+      { text: 'Fortepian', correct: true },
+      { text: 'Harfa koncertowa' },
+      { text: 'Gitara dwunastostrunowa' },
+      { text: 'Kontrabas' },
+    ],
+    note: 'Fortepian ma około 230 strun ukrytych pod pokrywą. Harfa koncertowa — 47.',
   },
   {
     id: 'kult-wiedzmin',
@@ -1947,72 +2425,90 @@ const QUESTIONS = [
       { text: 'Regis z Dillingen' },
       { text: 'Eskel z Kaer Morhen' },
     ],
-    note: 'Pozostali też występują w książkach Sapkowskiego — ale wiedźminem z tytułu jest Geralt.',
+    note: 'Pozostali też występują u Sapkowskiego — ale wiedźminem z tytułu jest Geralt.',
   },
   {
-    id: 'hist-herb-warszawy',
-    category: 'Historia',
+    id: 'licz-pol-tuzina',
+    category: 'Liczby',
     difficulty: 1,
-    text: 'Co przedstawia herb Warszawy?',
+    text: 'Ile sztuk to pół tuzina?',
+    answers: [{ text: '6', correct: true }, { text: '5' }, { text: '10' }, { text: '12' }],
+    note: 'Tuzin to 12, więc pół tuzina to 6. Kopa natomiast liczy 60.',
+  },
+  {
+    id: 'kuch-pomidor',
+    category: 'Kuchnia',
+    difficulty: 1,
+    text: 'Które z tych warzyw jest z botanicznego punktu widzenia owocem?',
     answers: [
-      { text: 'Syrenę', correct: true },
-      { text: 'Orła' },
-      { text: 'Lwa' },
-      { text: 'Niedźwiedzia' },
+      { text: 'Pomidor', correct: true },
+      { text: 'Marchew' },
+      { text: 'Burak' },
+      { text: 'Ziemniak' },
     ],
-    note: 'Warszawska Syrenka z mieczem i tarczą. Lew jest w herbie Lwowa, niedźwiedź — Przemyśla.',
-  },
-  {
-    id: 'hist-ue-2004',
-    category: 'Historia',
-    difficulty: 1,
-    text: 'W którym roku Polska wstąpiła do Unii Europejskiej?',
-    answers: [{ text: '2004', correct: true }, { text: '1999' }, { text: '2002' }, { text: '2007' }],
-    note: '1 maja 2004 roku, razem z dziewięcioma innymi państwami. W 1999 Polska weszła do NATO.',
-  },
-  {
-    id: 'muz-skrzypce',
-    category: 'Muzyka',
-    difficulty: 1,
-    text: 'Ile strun ma skrzypce?',
-    answers: [{ text: '4', correct: true }, { text: '5' }, { text: '6' }, { text: '3' }],
-    note: 'Cztery: G, D, A, E. Sześć strun ma gitara, a trzy — bałałajka.',
-  },
-  {
-    id: 'hist-piastowie',
-    category: 'Historia',
-    difficulty: 1,
-    text: 'Jak nazywała się pierwsza polska dynastia panująca?',
-    answers: [
-      { text: 'Piastowie', correct: true },
-      { text: 'Jagiellonowie' },
-      { text: 'Wazowie' },
-      { text: 'Andegawenowie' },
-    ],
-    note: 'Piastowie rządzili od Mieszka I do Kazimierza Wielkiego. Potem przyszli Andegawenowie i Jagiellonowie.',
+    note: 'Pomidor to jagoda — powstaje z zalążni kwiatu. Pozostałe trzy to korzenie i bulwy.',
   },
 
   /* ============================ poziom 2 ============================ */
   {
-    id: 'geo-ankara',
+    id: 'geo-dunaj',
     category: 'Geografia',
     difficulty: 2,
-    text: 'Które miasto jest stolicą Turcji?',
+    text: 'Przez które z tych państw NIE przepływa Dunaj?',
     answers: [
-      { text: 'Ankara', correct: true },
-      { text: 'Stambuł' },
-      { text: 'Izmir' },
-      { text: 'Antalya' },
+      { text: 'Czechy', correct: true },
+      { text: 'Austria' },
+      { text: 'Węgry' },
+      { text: 'Serbia' },
     ],
-    note: 'Stambuł jest największy i najbardziej znany, ale stolicę przeniesiono do Ankary w 1923 roku.',
+    note: 'Dunaj mija Czechy bokiem — płynie przez dziesięć państw, ale nie przez to.',
   },
   {
-    id: 'jez-kopa',
+    id: 'hist-co-najwczesniej',
+    category: 'Historia',
+    difficulty: 2,
+    text: 'Który z tych wynalazków powstał najwcześniej?',
+    answers: [
+      { text: 'Maszyna do pisania', correct: true },
+      { text: 'Telefon' },
+      { text: 'Żarówka' },
+      { text: 'Samochód' },
+    ],
+    note: 'Maszyna do pisania 1868, telefon 1876, żarówka 1879, samochód 1886. Kolejność bywa zaskoczeniem.',
+  },
+  {
+    id: 'jez-musztarda',
     category: 'Język polski',
     difficulty: 2,
-    text: 'Ile sztuk liczy dawna miara „kopa”?',
-    answers: [{ text: '60', correct: true }, { text: '50' }, { text: '40' }, { text: '100' }],
-    note: 'Kopa to 60 sztuk, czyli pięć tuzinów. Stąd „kopa siana” i „kopa jaj”.',
+    text: 'Co znaczy powiedzenie „musztarda po obiedzie”?',
+    answers: [
+      { text: 'Coś, co przychodzi stanowczo za późno', correct: true },
+      { text: 'Dodatek, bez którego można się obejść' },
+      { text: 'Przesada w drobnej sprawie' },
+      { text: 'Niespodziewany zwrot na koniec' },
+    ],
+    note: 'Musztarda podana po posiłku nie ma już czego przyprawić.',
+  },
+  {
+    id: 'nauka-kostka',
+    category: 'Nauka',
+    difficulty: 2,
+    text: 'Ile wynosi suma oczek na dwóch przeciwległych ścianach kostki do gry?',
+    answers: [{ text: '7', correct: true }, { text: '6' }, { text: '8' }, { text: '9' }],
+    note: 'Zawsze 7: naprzeciw jedynki leży szóstka, naprzeciw dwójki piątka, naprzeciw trójki czwórka.',
+  },
+  {
+    id: 'przyr-hipopotam',
+    category: 'Przyroda',
+    difficulty: 2,
+    text: 'Które z tych zwierząt jest najbliżej spokrewnione z hipopotamem?',
+    answers: [
+      { text: 'Wieloryb', correct: true },
+      { text: 'Świnia' },
+      { text: 'Nosorożec' },
+      { text: 'Słoń' },
+    ],
+    note: 'Walenie i hipopotamy mają wspólnego przodka. Podobieństwo do nosorożca jest wyłącznie z wyglądu.',
   },
   {
     id: 'kuch-jaglana',
@@ -2028,51 +2524,25 @@ const QUESTIONS = [
     note: 'Jaglana to obłuskane proso. Z jęczmienia jest pęczak i perłowa, z gryki — gryczana.',
   },
   {
-    id: 'jez-dopelniacz',
-    category: 'Język polski',
-    difficulty: 2,
-    text: 'Który przypadek odpowiada na pytania „kogo? czego?”',
-    answers: [
-      { text: 'Dopełniacz', correct: true },
-      { text: 'Biernik' },
-      { text: 'Celownik' },
-      { text: 'Narzędnik' },
-    ],
-    note: 'Biernik to „kogo? co?”, celownik „komu? czemu?”, a narzędnik „z kim? z czym?”.',
-  },
-  {
-    id: 'lit-saba',
-    category: 'Literatura',
-    difficulty: 2,
-    text: 'Jak nazywał się pies ze „W pustyni i w puszczy”?',
-    answers: [{ text: 'Saba', correct: true }, { text: 'Kali' }, { text: 'Mea' }, { text: 'Nel' }],
-    note: 'Saba to dog. Kali i Mea to towarzysze podróży, a Nel — mała bohaterka powieści.',
-  },
-  {
-    id: 'geo-warta',
-    category: 'Geografia',
-    difficulty: 2,
-    text: 'Które z tych miast leży nad Wartą?',
-    answers: [
-      { text: 'Poznań', correct: true },
-      { text: 'Toruń' },
-      { text: 'Wrocław' },
-      { text: 'Lublin' },
-    ],
-    note: 'Toruń leży nad Wisłą, Wrocław nad Odrą, a Lublin nad Bystrzycą.',
-  },
-  {
-    id: 'muz-niemen',
+    id: 'muz-hymn-ue',
     category: 'Muzyka',
     difficulty: 2,
-    text: 'Kto śpiewał „Dziwny jest ten świat”?',
+    text: 'Hymn Unii Europejskiej to fragment…',
     answers: [
-      { text: 'Czesław Niemen', correct: true },
-      { text: 'Marek Grechuta' },
-      { text: 'Krzysztof Krawczyk' },
-      { text: 'Andrzej Zaucha' },
+      { text: 'IX Symfonii Beethovena', correct: true },
+      { text: 'V Symfonii Beethovena' },
+      { text: '„Wodnej muzyki” Händla' },
+      { text: '„Czterech pór roku” Vivaldiego' },
     ],
-    note: 'Niemen wykonał ją na festiwalu w Opolu w 1967 roku — i przeszedł do historii.',
+    note: '„Oda do radości” z finału IX Symfonii — przyjęta bez słów, żeby żaden język nie był uprzywilejowany.',
+  },
+  {
+    id: 'sport-400m',
+    category: 'Sport',
+    difficulty: 2,
+    text: 'Ile okrążeń stadionowej bieżni liczy bieg na 400 metrów?',
+    answers: [{ text: '1', correct: true }, { text: '2' }, { text: '4' }, { text: 'Pół' }],
+    note: 'Standardowa bieżnia ma dokładnie 400 metrów, więc to jedno okrążenie.',
   },
   {
     id: 'licz-miliard',
@@ -2082,8 +2552,113 @@ const QUESTIONS = [
     answers: [{ text: '9', correct: true }, { text: '6' }, { text: '12' }, { text: '8' }],
     note: '1 000 000 000 — dziewięć zer. Sześć ma milion, dwanaście bilion.',
   },
+  {
+    id: 'lit-saba',
+    category: 'Literatura',
+    difficulty: 2,
+    text: 'Jak nazywał się pies ze „W pustyni i w puszczy”?',
+    answers: [{ text: 'Saba', correct: true }, { text: 'Kali' }, { text: 'Mea' }, { text: 'Nel' }],
+    note: 'Saba to dog. Kali i Mea to towarzysze podróży, a Nel — mała bohaterka powieści.',
+  },
 
   /* ============================ poziom 3 ============================ */
+  {
+    id: 'geo-rownik',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Które z tych miast leży najbliżej równika?',
+    answers: [
+      { text: 'Kair', correct: true },
+      { text: 'Tokio' },
+      { text: 'Nowy Jork' },
+      { text: 'Rzym' },
+    ],
+    note: 'Kair leży na 30°N, Tokio na 36°N, Nowy Jork na 41°N, Rzym na 42°N.',
+  },
+  {
+    id: 'hist-najdluzej-krol',
+    category: 'Historia',
+    difficulty: 3,
+    text: 'Który z tych władców panował w Polsce najdłużej?',
+    answers: [
+      { text: 'Władysław Jagiełło', correct: true },
+      { text: 'Zygmunt III Waza' },
+      { text: 'Zygmunt Stary' },
+      { text: 'Kazimierz Wielki' },
+    ],
+    note: 'Jagiełło 48 lat, Zygmunt III Waza 45, Zygmunt Stary 42, Kazimierz Wielki 37.',
+  },
+  {
+    id: 'jez-rak',
+    category: 'Język polski',
+    difficulty: 3,
+    text: 'Jak brzmi dopełniacz liczby mnogiej słowa „ręka”?',
+    answers: [{ text: 'rąk', correct: true }, { text: 'ręk' }, { text: 'ręków' }, { text: 'rąków' }],
+    note: 'Nie ma rąk. Wymiana „ę” na „ą” jest tu regularna, choć brzmi jak wyjątek.',
+  },
+  {
+    id: 'nauka-wenus',
+    category: 'Nauka',
+    difficulty: 3,
+    text: 'Jak ma się doba na Wenus do jej roku?',
+    answers: [
+      { text: 'Doba jest dłuższa niż rok', correct: true },
+      { text: 'Rok jest dwa razy dłuższy' },
+      { text: 'Są prawie równe' },
+      { text: 'Doba trwa niecałe 24 godziny' },
+    ],
+    note: 'Wenus obraca się wokół osi 243 dni ziemskich, a Słońce okrąża w 225. Dzień trwa tam dłużej niż rok.',
+  },
+  {
+    id: 'przyr-banan',
+    category: 'Przyroda',
+    difficulty: 3,
+    text: 'Na czym rosną banany?',
+    answers: [
+      { text: 'Na roślinie zielnej — bananowiec nie jest drzewem', correct: true },
+      { text: 'Na drzewie z twardym pniem' },
+      { text: 'Na krzewie' },
+      { text: 'Na pnączu' },
+    ],
+    note: 'To, co wygląda na pień, jest zwiniętymi liśćmi. Botanicznie bananowiec to bylina, a banan — jagoda.',
+  },
+  {
+    id: 'kuch-al-dente',
+    category: 'Kuchnia',
+    difficulty: 3,
+    text: 'Co oznacza „al dente”?',
+    answers: [
+      { text: 'Makaron stawia jeszcze lekki opór przy gryzieniu', correct: true },
+      { text: 'Makaron gotowany w osolonej wodzie' },
+      { text: 'Makaron podany od razu po odcedzeniu' },
+      { text: 'Makaron przelany zimną wodą' },
+    ],
+    note: 'Dosłownie „na ząb”. Środek nitki jest jeszcze odrobinę twardy — i o to chodzi.',
+  },
+  {
+    id: 'muz-pianino',
+    category: 'Muzyka',
+    difficulty: 3,
+    text: 'Ile klawiszy ma standardowe pianino?',
+    answers: [{ text: '88', correct: true }, { text: '76' }, { text: '61' }, { text: '96' }],
+    note: '52 białe i 36 czarnych. 61 i 76 to typowe rozmiary keyboardów.',
+  },
+  {
+    id: 'sport-golf',
+    category: 'Sport',
+    difficulty: 3,
+    text: 'Ile dołków ma standardowe pole golfowe?',
+    answers: [{ text: '18', correct: true }, { text: '12' }, { text: '16' }, { text: '24' }],
+    note: 'Osiemnaście — układ przyjęty w XVIII wieku w szkockim St Andrews.',
+  },
+  {
+    id: 'lit-nobelisci',
+    category: 'Literatura',
+    difficulty: 3,
+    text: 'Ilu Polaków otrzymało do tej pory literacką Nagrodę Nobla?',
+    answers: [{ text: '5', correct: true }, { text: '3' }, { text: '4' }, { text: '6' }],
+    note: 'Sienkiewicz, Reymont, Miłosz, Szymborska i Tokarczuk.',
+  },
   {
     id: 'licz-doba',
     category: 'Liczby',
@@ -2097,99 +2672,62 @@ const QUESTIONS = [
     ],
     note: '24 razy 60. Sekund w dobie jest już 86 400.',
   },
-  {
-    id: 'nauka-rtec',
-    category: 'Nauka',
-    difficulty: 3,
-    text: 'Który z tych metali jest cieczą w temperaturze pokojowej?',
-    answers: [{ text: 'Rtęć', correct: true }, { text: 'Ołów' }, { text: 'Cyna' }, { text: 'Potas' }],
-    note: 'Rtęć topi się w −39°C. Cyna dopiero w 232°C, a ołów w 327°C.',
-  },
-  {
-    id: 'jez-grochem',
-    category: 'Język polski',
-    difficulty: 3,
-    text: 'Co znaczy powiedzenie „rzucać grochem o ścianę”?',
-    answers: [
-      { text: 'Mówić do kogoś bez najmniejszego skutku', correct: true },
-      { text: 'Marnować jedzenie' },
-      { text: 'Kłócić się o drobiazgi' },
-      { text: 'Robić coś w wielkim pośpiechu' },
-    ],
-    note: 'Groch odbija się od ściany i wraca — tak jak argumenty od kogoś, kto nie słucha.',
-  },
-  {
-    id: 'geo-sniezka',
-    category: 'Geografia',
-    difficulty: 3,
-    text: 'Jak nazywa się najwyższy szczyt Karkonoszy?',
-    answers: [
-      { text: 'Śnieżka', correct: true },
-      { text: 'Śnieżnik' },
-      { text: 'Babia Góra' },
-      { text: 'Rysy' },
-    ],
-    note: 'Śnieżka ma 1603 m. Rysy to Tatry, Babia Góra — Beskidy, a Śnieżnik leży w Masywie Śnieżnika.',
-  },
-  {
-    id: 'muz-pianino',
-    category: 'Muzyka',
-    difficulty: 3,
-    text: 'Ile klawiszy ma standardowe pianino?',
-    answers: [{ text: '88', correct: true }, { text: '76' }, { text: '61' }, { text: '96' }],
-    note: '52 białe i 36 czarnych. 61 i 76 to typowe rozmiary keyboardów.',
-  },
-  {
-    id: 'lit-nobliści',
-    category: 'Literatura',
-    difficulty: 3,
-    text: 'Ilu Polaków otrzymało do tej pory literacką Nagrodę Nobla?',
-    answers: [{ text: '5', correct: true }, { text: '3' }, { text: '4' }, { text: '6' }],
-    note: 'Sienkiewicz, Reymont, Miłosz, Szymborska i Tokarczuk.',
-  },
-  {
-    id: 'hist-lokietek',
-    category: 'Historia',
-    difficulty: 3,
-    text: 'Który polski król nosił przydomek Łokietek?',
-    answers: [
-      { text: 'Władysław', correct: true },
-      { text: 'Kazimierz' },
-      { text: 'Bolesław' },
-      { text: 'Mieszko' },
-    ],
-    note: 'Władysław I Łokietek — przydomek wziął się z niskiego wzrostu. Jego synem był Kazimierz Wielki.',
-  },
-  {
-    id: 'sport-golf',
-    category: 'Sport',
-    difficulty: 3,
-    text: 'Ile dołków ma standardowe pole golfowe?',
-    answers: [{ text: '18', correct: true }, { text: '12' }, { text: '16' }, { text: '24' }],
-    note: 'Osiemnaście — układ przyjęty w XVIII wieku w szkockim St Andrews.',
-  },
 
   /* ============================ poziom 4 ============================ */
   {
-    id: 'hist-wojna-stuletnia',
-    category: 'Historia',
+    id: 'geo-kaspijskie',
+    category: 'Geografia',
     difficulty: 4,
-    text: 'Ile lat trwała wojna stuletnia?',
-    answers: [{ text: '116', correct: true }, { text: '100' }, { text: '99' }, { text: '123' }],
-    note: 'Od 1337 do 1453 roku. Nazwa jest zaokrągleniem, a nie faktem.',
+    text: 'Czym w rzeczywistości jest Morze Kaspijskie?',
+    answers: [
+      { text: 'Największym jeziorem świata', correct: true },
+      { text: 'Zatoką Oceanu Indyjskiego' },
+      { text: 'Morzem wewnętrznym połączonym z Morzem Czarnym' },
+      { text: 'Sztucznym zbiornikiem z czasów ZSRR' },
+    ],
+    note: 'Nie ma połączenia z oceanem, więc mimo nazwy i zasolenia jest jeziorem — i to największym.',
   },
   {
-    id: 'lit-ferdydurke',
-    category: 'Literatura',
+    id: 'hist-wright-ksiezyc',
+    category: 'Historia',
     difficulty: 4,
-    text: 'Kto napisał „Ferdydurke”?',
+    text: 'Ile lat dzieli pierwszy lot braci Wright od lądowania człowieka na Księżycu?',
+    answers: [{ text: '66', correct: true }, { text: '46' }, { text: '86' }, { text: '106' }],
+    note: 'Od 1903 do 1969 roku. Ludzie, którzy widzieli pierwszy samolot, dożyli lądowania na Księżycu.',
+  },
+  {
+    id: 'jez-lakoniczny',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Co znaczy „lakoniczny”?',
     answers: [
-      { text: 'Witold Gombrowicz', correct: true },
-      { text: 'Bruno Schulz' },
-      { text: 'Stanisław Ignacy Witkiewicz' },
-      { text: 'Zofia Nałkowska' },
+      { text: 'Zwięzły, powiedziany w kilku słowach', correct: true },
+      { text: 'Rozwlekły i pełen dygresji' },
+      { text: 'Chłodny, pozbawiony emocji' },
+      { text: 'Zawiły i trudny do zrozumienia' },
     ],
-    note: 'Gombrowicz, 1937. Wszyscy czterej tworzyli w tym samym dwudziestoleciu.',
+    note: 'Od Lakonii, czyli Sparty — jej mieszkańcy słynęli z odpowiadania jednym zdaniem.',
+  },
+  {
+    id: 'nauka-powietrze',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Którego gazu jest najwięcej w powietrzu, którym oddychamy?',
+    answers: [
+      { text: 'Azotu', correct: true },
+      { text: 'Tlenu' },
+      { text: 'Dwutlenku węgla' },
+      { text: 'Argonu' },
+    ],
+    note: 'Azot to 78 procent, tlen tylko 21. Argon jest trzeci, a dwutlenku węgla jest ułamek procenta.',
+  },
+  {
+    id: 'przyr-osmiornica',
+    category: 'Przyroda',
+    difficulty: 4,
+    text: 'Ile serc ma ośmiornica?',
+    answers: [{ text: '3', correct: true }, { text: '1' }, { text: '2' }, { text: '5' }],
+    note: 'Dwa tłoczą krew do skrzeli, trzecie do reszty ciała. Przy pływaniu to główne przestaje bić.',
   },
   {
     id: 'film-oscar-ida',
@@ -2202,36 +2740,7 @@ const QUESTIONS = [
       { text: '„Katyń”' },
       { text: '„Boże Ciało”' },
     ],
-    note: '„Ida” Pawła Pawlikowskiego wygrała w 2015 roku. Pozostałe trzy były nominowane, ale statuetki nie zdobyły.',
-  },
-  {
-    id: 'nauka-kosci-dloni',
-    category: 'Nauka',
-    difficulty: 4,
-    text: 'Ile kości ma jedna ludzka dłoń wraz z nadgarstkiem?',
-    answers: [{ text: '27', correct: true }, { text: '19' }, { text: '23' }, { text: '31' }],
-    note: '8 kości nadgarstka, 5 śródręcza i 14 paliczków. Obie dłonie to ponad jedna czwarta wszystkich kości człowieka.',
-  },
-  {
-    id: 'geo-strefa-euro',
-    category: 'Geografia',
-    difficulty: 4,
-    text: 'Który z tych krajów Unii Europejskiej NIE należy do strefy euro?',
-    answers: [
-      { text: 'Szwecja', correct: true },
-      { text: 'Finlandia' },
-      { text: 'Portugalia' },
-      { text: 'Słowacja' },
-    ],
-    note: 'Szwecja płaci koronami. Finlandia i Portugalia mają euro od początku, Słowacja od 2009 roku.',
-  },
-  {
-    id: 'nauka-beaufort',
-    category: 'Nauka',
-    difficulty: 4,
-    text: 'Ile stopni ma skala Beauforta?',
-    answers: [{ text: '12', correct: true }, { text: '9' }, { text: '10' }, { text: '15' }],
-    note: 'Od 0 (cisza) do 12 (huragan). Skala mierzy siłę wiatru, nie prędkość w liczbach.',
+    note: '„Ida” Pawła Pawlikowskiego wygrała w 2015 roku. Pozostałe trzy były nominowane, ale bez statuetki.',
   },
   {
     id: 'sport-malysz',
@@ -2247,45 +2756,113 @@ const QUESTIONS = [
     note: 'Małysz wygrał w sezonie 2000/2001. Stoch powtórzył to dopiero w 2017/2018.',
   },
   {
-    id: 'geo-stambul',
-    category: 'Geografia',
+    id: 'lit-ferdydurke',
+    category: 'Literatura',
     difficulty: 4,
-    text: 'Które z tych miast leży na dwóch kontynentach?',
+    text: 'Kto napisał „Ferdydurke”?',
     answers: [
-      { text: 'Stambuł', correct: true },
-      { text: 'Ateny' },
-      { text: 'Kair' },
-      { text: 'Lizbona' },
+      { text: 'Witold Gombrowicz', correct: true },
+      { text: 'Bruno Schulz' },
+      { text: 'Stanisław Ignacy Witkiewicz' },
+      { text: 'Zofia Nałkowska' },
     ],
-    note: 'Bosfor dzieli Stambuł na część europejską i azjatycką.',
+    note: 'Gombrowicz, 1937. Wszyscy czterej tworzyli w tym samym dwudziestoleciu.',
+  },
+  {
+    id: 'licz-luty-2100',
+    category: 'Liczby',
+    difficulty: 4,
+    text: 'Ile dni będzie miał luty w roku 2100?',
+    answers: [{ text: '28', correct: true }, { text: '29' }, { text: '30' }, { text: '27' }],
+    note: 'Rok podzielny przez 100 nie jest przestępny — chyba że dzieli się przez 400. Rok 2000 był, 2100 nie będzie.',
+  },
+  {
+    id: 'kuch-czekolada',
+    category: 'Kuchnia',
+    difficulty: 4,
+    text: 'Z czego powstaje biała czekolada?',
+    answers: [
+      { text: 'Z masła kakaowego, bez miazgi kakaowej', correct: true },
+      { text: 'Z kakao odbarwionego chemicznie' },
+      { text: 'Z mleka w proszku i cukru, bez składników kakaowych' },
+      { text: 'Z ziaren kakaowca zbieranych przed dojrzeniem' },
+    ],
+    note: 'Zawiera tłuszcz z ziarna, ale nie zawiera miazgi — stąd brak brązowego koloru i gorzkiego smaku.',
   },
 
   /* ============================ poziom 5 ============================ */
   {
-    id: 'hist-najkrotsza-wojna',
-    category: 'Historia',
-    difficulty: 5,
-    text: 'Ile trwała najkrótsza wojna w historii — angielsko-zanzibarska?',
-    answers: [
-      { text: 'Około 38 minut', correct: true },
-      { text: 'Około 8 godzin' },
-      { text: 'Około 38 godzin' },
-      { text: 'Około 3 dni' },
-    ],
-    note: '27 sierpnia 1896 roku. Ostrzał pałacu sułtana zakończył wojnę przed lunchem.',
-  },
-  {
-    id: 'geo-opolskie',
+    id: 'geo-poludniowa-polkula',
     category: 'Geografia',
     difficulty: 5,
-    text: 'Które województwo ma najmniejszą powierzchnię?',
+    text: 'Które z tych państw leży w całości na półkuli południowej?',
     answers: [
-      { text: 'Opolskie', correct: true },
-      { text: 'Świętokrzyskie' },
-      { text: 'Lubuskie' },
-      { text: 'Podlaskie' },
+      { text: 'Australia', correct: true },
+      { text: 'Brazylia' },
+      { text: 'Kenia' },
+      { text: 'Ekwador' },
     ],
-    note: 'Opolskie ma około 9,4 tys. km². Świętokrzyskie jest o dwa tysiące większe, a podlaskie ponad dwa razy.',
+    note: 'Równik przecina Brazylię, Kenię i — co słychać już w nazwie — Ekwador.',
+  },
+  {
+    id: 'hist-uj',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'W którym roku założono Uniwersytet Jagielloński?',
+    answers: [{ text: '1364', correct: true }, { text: '1264' }, { text: '1400' }, { text: '1464' }],
+    note: 'Kazimierz Wielki, 1364. W 1400 roku Władysław Jagiełło uczelnię odnowił — stąd druga data w obiegu.',
+  },
+  {
+    id: 'jez-gilotyna',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Które z tych słów pochodzi od nazwiska?',
+    answers: [
+      { text: 'Gilotyna', correct: true },
+      { text: 'Parasol' },
+      { text: 'Kanapka' },
+      { text: 'Firanka' },
+    ],
+    note: 'Od Josepha Guillotina, który maszyny nie wynalazł — postulował tylko, by egzekucje były szybkie.',
+  },
+  {
+    id: 'nauka-masa-slonca',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Jaką część masy Układu Słonecznego stanowi samo Słońce?',
+    answers: [
+      { text: 'Ponad 99 procent', correct: true },
+      { text: 'Około 70 procent' },
+      { text: 'Około 85 procent' },
+      { text: 'Około 95 procent' },
+    ],
+    note: '99,86 procent. Cała reszta — planety, księżyce, planetoidy — mieści się w tym, co zostało.',
+  },
+  {
+    id: 'przyr-miod',
+    category: 'Przyroda',
+    difficulty: 5,
+    text: 'Dlaczego miód praktycznie się nie psuje?',
+    answers: [
+      { text: 'Jest kwaśny i niemal pozbawiony wody, więc bakterie w nim nie żyją', correct: true },
+      { text: 'Zawiera naturalny antybiotyk wytwarzany przez pszczoły' },
+      { text: 'Jest sterylny, bo pszczoły podgrzewają go w ulu' },
+      { text: 'Cukry w miodzie nie ulegają rozkładowi' },
+    ],
+    note: 'W grobowcach egipskich znaleziono miód sprzed tysięcy lat, wciąż zdatny do jedzenia.',
+  },
+  {
+    id: 'kuch-szafran',
+    category: 'Kuchnia',
+    difficulty: 5,
+    text: 'Czym jest szafran, najdroższa przyprawa świata?',
+    answers: [
+      { text: 'Znamionami kwiatu krokusa, zbieranymi ręcznie', correct: true },
+      { text: 'Sproszkowaną korą drzewa szafranowego' },
+      { text: 'Suszonym korzeniem odmiany kurkumy' },
+      { text: 'Pyłkiem zbieranym z kwiatów przez pszczoły' },
+    ],
+    note: 'Każdy kwiat daje trzy nitki. Na kilogram przyprawy trzeba ich około 150 tysięcy — stąd cena.',
   },
   {
     id: 'film-rejs',
@@ -2298,59 +2875,20 @@ const QUESTIONS = [
       { text: 'Juliusz Machulski' },
       { text: 'Andrzej Kondratiuk' },
     ],
-    note: 'Bareja nakręcił „Misia” i „Co mi zrobisz, jak mnie złapiesz” — „Rejs” to jednak Piwowski.',
+    note: 'Bareja nakręcił „Misia” i „Alternatywy 4” — „Rejs” to jednak Piwowski.',
   },
   {
-    id: 'jez-kolodziej',
-    category: 'Język polski',
+    id: 'sport-maraton',
+    category: 'Sport',
     difficulty: 5,
-    text: 'Czym zajmował się kołodziej?',
+    text: 'Skąd wzięła się dziwna długość maratonu — 42,195 km?',
     answers: [
-      { text: 'Wyrabiał koła do wozów', correct: true },
-      { text: 'Hodował konie pociągowe' },
-      { text: 'Kuł podkowy' },
-      { text: 'Naprawiał studnie' },
+      { text: 'Z igrzysk w Londynie, gdzie trasę wydłużono do loży królewskiej', correct: true },
+      { text: 'To dokładna odległość z Maratonu do Aten' },
+      { text: 'Zaokrąglono ją z 26 mil angielskich' },
+      { text: 'Wyznaczono ją losowo na pierwszych igrzyskach w 1896 roku' },
     ],
-    note: 'Stąd przydomek legendarnego Piasta Kołodzieja. Podkowy kuł kowal.',
-  },
-  {
-    id: 'jez-ampersand',
-    category: 'Język polski',
-    difficulty: 5,
-    text: 'Jak nazywa się znak „&”?',
-    answers: [
-      { text: 'Ampersand', correct: true },
-      { text: 'Tylda' },
-      { text: 'Cedylla' },
-      { text: 'Diereza' },
-    ],
-    note: 'Tylda to „~”, cedylla to ogonek pod „ç”, a diereza — dwie kropki nad samogłoską.',
-  },
-  {
-    id: 'nauka-cisnienie',
-    category: 'Nauka',
-    difficulty: 5,
-    text: 'Ile wynosi normalne ciśnienie atmosferyczne na poziomie morza?',
-    answers: [
-      { text: '1013 hPa', correct: true },
-      { text: '760 hPa' },
-      { text: '913 hPa' },
-      { text: '1113 hPa' },
-    ],
-    note: '1013 hektopaskali. Liczba 760 też jest prawdziwa — ale w milimetrach słupa rtęci.',
-  },
-  {
-    id: 'przyr-ciaza-slonia',
-    category: 'Przyroda',
-    difficulty: 5,
-    text: 'Ile trwa ciąża u słonicy?',
-    answers: [
-      { text: 'Około 22 miesięcy', correct: true },
-      { text: 'Około 12 miesięcy' },
-      { text: 'Około 16 miesięcy' },
-      { text: 'Około 30 miesięcy' },
-    ],
-    note: 'Prawie dwa lata — najdłużej ze wszystkich ssaków lądowych.',
+    note: 'Londyn 1908: start pod oknami zamku w Windsorze, meta przed lożą królewską. Od 1921 roku to obowiązujący dystans.',
   },
   {
     id: 'lit-hanna-krall',
@@ -2364,6 +2902,19 @@ const QUESTIONS = [
       { text: 'Wisława Szymborska' },
     ],
     note: 'To zapis rozmowy Hanny Krall z Markiem Edelmanem — on jest bohaterem książki, nie jej autorem.',
+  },
+  {
+    id: 'licz-dwa-do-dziesiatej',
+    category: 'Liczby',
+    difficulty: 5,
+    text: 'Ile wynosi dwa do potęgi dziesiątej?',
+    answers: [
+      { text: '1024', correct: true },
+      { text: '1000' },
+      { text: '2048' },
+      { text: '512' },
+    ],
+    note: 'Dlatego kilobajt to przez lata było 1024 bajty, a nie równe tysiąc.',
   },
 ];
 
@@ -2448,6 +2999,18 @@ function noise({ duration = 0.5, gain = 0.5, from = 2400, to = 200 } = {}) {
 }
 
 const sfx = {
+  /** Plansza z numerem rundy — krótki sygnał stacji. */
+  bumper: () => {
+    [392, 523.25, 659.25].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', start: i * 0.07, duration: 0.3, gain: 0.5 }),
+    );
+    tone({ freq: 98, type: 'sine', duration: 0.6, gain: 0.45 });
+  },
+  /** Wybór kategorii. */
+  pick: () => {
+    tone({ freq: 660, type: 'triangle', duration: 0.1, gain: 0.45 });
+    tone({ freq: 990, type: 'triangle', start: 0.08, duration: 0.22, gain: 0.4 });
+  },
   /** Chwycenie pliku paczek. */
   grab: () => tone({ freq: 880, type: 'triangle', duration: 0.09, gain: 0.5 }),
   /** Paczka ląduje na zapadni — krótkie, papierowe klapnięcie. */
@@ -2600,6 +3163,9 @@ function burst(canvas, { count = 180, duration = 4200 } = {}) {
  *   .lanes  — ekrany z odpowiedziami i stosy paczek, w płaszczyźnie ekranu.
  * Dzięki temu spadające paczki animujemy zwykłym translateY, bez walki
  * z układem współrzędnych obróconej podłogi.
+ *
+ * Runda ma trzy odsłony: plansza z kategoriami, pytanie z rozkładaniem paczek
+ * i otwieranie zapadni — jedna po drugiej, w kolejności, którą wyznacza silnik.
  */
 
 
@@ -2615,18 +3181,25 @@ const BEST_KEY = 'pnm.best';
 const STACK_HEIGHT = 104;
 const HAND_STACK_HEIGHT = 34;
 
+/** Rytm otwierania zapadni (ms). */
+const BEAT = {
+  bumper: 1500,
+  tension: 1500, // cisza po zatwierdzeniu
+  spotlight: 420, // podświetlenie pola tuż przed otwarciem
+  emptyDoor: 900, // pusta zapadnia — otwiera się i nic nie spada
+  loadedDoor: 1800, // zapadnia z pieniędzmi — paczki muszą dolecieć
+  finish: 1300, // od poprawnej zapadni do podsumowania
+};
+
 const money = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const zl = (value) => `${money.format(Math.round(value))} zł`;
-const paczki = (n) => `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
+const paczki = (n) =>
+  `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
 
 const $ = (id) => document.getElementById(id);
 
 const el = {
-  screens: {
-    start: $('screen-start'),
-    game: $('screen-game'),
-    end: $('screen-end'),
-  },
+  screens: { start: $('screen-start'), game: $('screen-game'), end: $('screen-end') },
   best: $('best-score'),
   seedInput: $('seed-input'),
   btnStart: $('btn-start'),
@@ -2641,6 +3214,9 @@ const el = {
   timerRing: $('timer-ring'),
   timer: $('timer'),
 
+  choice: $('choice'),
+  choiceCards: $('choice-cards'),
+  question: $('question'),
   category: $('q-category'),
   questionText: $('q-text'),
   finalHint: $('q-final'),
@@ -2648,6 +3224,9 @@ const el = {
   stage: $('stage'),
   floor: $('floor'),
   lanes: $('lanes'),
+  bumper: $('bumper'),
+  bumperRound: $('bumper-round'),
+  bumperStake: $('bumper-stake'),
 
   tray: $('tray'),
   unplaced: $('unplaced'),
@@ -2658,6 +3237,10 @@ const el = {
   btnClear: $('btn-clear'),
   btnLock: $('btn-lock'),
   lockHint: $('lock-hint'),
+
+  waiting: $('waiting'),
+  waitingText: $('waiting-text'),
+  btnSkip: $('btn-skip'),
 
   reveal: $('reveal'),
   revealHeadline: $('reveal-headline'),
@@ -2683,7 +3266,10 @@ let timerId = null;
 let deadline = 0;
 let lastWholeSecond = null;
 let stopConfetti = null;
-let revealTimers = [];
+let timers = [];
+let shownBalance = START_BALANCE;
+/** Kroki otwierania zapadni — trzymamy je, żeby dało się je przewinąć. */
+let revealSteps = [];
 
 /* ------------------------------------------------------------------ *
  * Pomocnicze
@@ -2700,25 +3286,32 @@ function randomSeed() {
   return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 }
 
-function clearRevealTimers() {
-  revealTimers.forEach(clearTimeout);
-  revealTimers = [];
+function clearTimers() {
+  timers.forEach(clearTimeout);
+  timers = [];
 }
 
 function later(fn, delay) {
-  revealTimers.push(setTimeout(fn, delay));
+  timers.push(setTimeout(fn, delay));
 }
 
 /** Płynne przeliczanie kwoty na liczniku. */
-function animateMoney(node, from, to, duration = 900) {
+function animateMoney(to, duration = 700) {
+  const from = shownBalance;
+  shownBalance = to;
   const start = performance.now();
   const step = (now) => {
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3);
-    node.textContent = zl(from + (to - from) * eased);
+    el.balance.textContent = zl(from + (to - from) * eased);
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+}
+
+function setBalance(value) {
+  shownBalance = value;
+  el.balance.textContent = zl(value);
 }
 
 function readBest() {
@@ -2771,27 +3364,17 @@ function renderStack(node, amount, laneIndex = 0, fallbackHeight = STACK_HEIGHT)
 }
 
 /* ------------------------------------------------------------------ *
- * Rysowanie rundy
+ * Scena
  * ------------------------------------------------------------------ */
 
-function renderRound() {
-  clearRevealTimers();
-  const question = currentQuestion(state);
-  const doors = question.answers.length;
-
-  el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
-  el.category.textContent = question.category;
-  el.questionText.textContent = question.text;
-  el.finalHint.hidden = !question.isFinal;
-
-  el.reveal.hidden = true;
-  el.tray.hidden = false;
+/** Buduje puste zapadnie i ekrany — jeszcze zanim padnie pytanie. */
+function buildStage(doors) {
   el.stage.style.setProperty('--doors', String(doors));
   el.stage.classList.remove('is-revealed');
+  el.stage.classList.add('is-idle');
 
-  // warstwa zapadni
   el.floor.innerHTML = '';
-  traps = question.answers.map(() => {
+  traps = Array.from({ length: doors }, () => {
     const trap = document.createElement('div');
     trap.className = 'trap';
     trap.innerHTML = `
@@ -2803,34 +3386,110 @@ function renderRound() {
     return trap;
   });
 
-  // warstwa ekranów i stosów
   el.lanes.innerHTML = '';
-  lanes = question.answers.map((answer, index) => {
+  lanes = Array.from({ length: doors }, (_, index) => {
     const lane = document.createElement('div');
     lane.className = 'lane';
     lane.dataset.index = String(index);
     lane.innerHTML = `
-      <button class="lane__hit" type="button" data-act="place" aria-label="Połóż paczki na polu ${LETTERS[index]}"></button>
+      <button class="lane__hit" type="button" data-act="place" disabled aria-label="Pole ${LETTERS[index]}"></button>
       <div class="lane__panel">
         <span class="lane__letter">${LETTERS[index]}</span>
         <span class="lane__text"></span>
       </div>
-      <div class="lane__amount">0 zł</div>
+      <div class="lane__amount"></div>
       <div class="lane__stack"></div>
       <button class="lane__minus" type="button" data-act="take" title="Zabierz paczkę" aria-label="Zabierz paczkę z pola ${LETTERS[index]}">−</button>
     `;
-    lane.querySelector('.lane__text').textContent = answer.text;
     el.lanes.append(lane);
     return {
       lane,
+      text: lane.querySelector('.lane__text'),
       amount: lane.querySelector('.lane__amount'),
       stack: lane.querySelector('.lane__stack'),
       hit: lane.querySelector('.lane__hit'),
       minus: lane.querySelector('.lane__minus'),
     };
   });
+}
 
-  el.balance.textContent = zl(state.balance);
+/* ------------------------------------------------------------------ *
+ * Odsłona 1 — wybór kategorii
+ * ------------------------------------------------------------------ */
+
+function renderChoice() {
+  clearTimers();
+  idleTimer();
+
+  el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
+  el.question.hidden = true;
+  el.choice.hidden = true;
+  el.tray.hidden = true;
+  el.reveal.hidden = true;
+  el.waiting.hidden = true;
+  setBalance(state.balance);
+  buildStage(doorsInRound(state));
+
+  // plansza rundy — krótka zapowiedź, jak przed przerwą na antenie
+  el.bumperRound.textContent = `Runda ${state.roundIndex + 1}`;
+  el.bumperStake.textContent = zl(state.balance);
+  el.bumper.hidden = false;
+  el.bumper.classList.remove('is-running');
+  void el.bumper.offsetWidth;
+  el.bumper.classList.add('is-running');
+  sfx.bumper();
+
+  later(() => {
+    el.bumper.hidden = true;
+    const offer = offeredCategories(state);
+    el.choiceCards.innerHTML = '';
+    offer.forEach((category, i) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'choice__card';
+      card.dataset.category = category;
+      card.style.setProperty('--i', String(i));
+      card.innerHTML = `
+        <span class="choice__label">Kategoria ${i + 1}</span>
+        <span class="choice__name"></span>
+      `;
+      card.querySelector('.choice__name').textContent = category;
+      el.choiceCards.append(card);
+    });
+    el.choice.hidden = false;
+    el.choiceCards.querySelector('.choice__card')?.focus();
+  }, BEAT.bumper);
+}
+
+function pickCategory(category) {
+  if (!state || state.status !== 'choosing') return;
+  clearTimers();
+  sfx.pick();
+  state = chooseCategory(state, category);
+  renderQuestion();
+}
+
+/* ------------------------------------------------------------------ *
+ * Odsłona 2 — pytanie i rozkładanie paczek
+ * ------------------------------------------------------------------ */
+
+function renderQuestion() {
+  const question = currentQuestion(state);
+
+  el.choice.hidden = true;
+  el.question.hidden = false;
+  el.category.textContent = question.category;
+  el.questionText.textContent = question.text;
+  el.finalHint.hidden = !question.isFinal;
+
+  el.stage.classList.remove('is-idle');
+  lanes.forEach((node, index) => {
+    node.text.textContent = question.answers[index].text;
+  });
+
+  el.tray.hidden = false;
+  el.reveal.hidden = true;
+  el.waiting.hidden = true;
   renderStakes();
   startTimer();
 }
@@ -2897,7 +3556,7 @@ function startTimer() {
   const seconds = roundSeconds(state);
   deadline = performance.now() + seconds * 1000;
   lastWholeSecond = null;
-  el.timer.classList.remove('is-urgent');
+  el.timer.classList.remove('is-urgent', 'is-off');
   el.timerRing.style.strokeDasharray = String(RING_LENGTH);
   tick(seconds);
   timerId = setInterval(() => tick(seconds), 100);
@@ -2906,6 +3565,15 @@ function startTimer() {
 function stopTimer() {
   if (timerId) clearInterval(timerId);
   timerId = null;
+}
+
+/** Zegar poza rundą: nie odlicza, więc nie udaje, że odlicza. */
+function idleTimer() {
+  stopTimer();
+  el.timer.classList.remove('is-urgent');
+  el.timer.classList.add('is-off');
+  el.timerValue.textContent = '–';
+  el.timerRing.style.strokeDashoffset = String(RING_LENGTH);
 }
 
 function tick(seconds) {
@@ -2928,20 +3596,24 @@ function tick(seconds) {
 }
 
 /* ------------------------------------------------------------------ *
- * Otwieranie zapadni
+ * Odsłona 3 — zapadnie otwierają się po kolei
  * ------------------------------------------------------------------ */
 
 function lockIn(byTimeout = false) {
   if (!state || state.status !== 'placing') return;
   if (!byTimeout && !canLock(state)) return;
-  stopTimer();
+  idleTimer();
+  clearTimers();
 
-  const before = state.balance;
+  const bets = state.bets.slice();
   state = resolve(state);
-  const { correct, kept, dropped, forfeited } = state.result;
+  const { correct, forfeited } = state.result;
   const correctSet = new Set(correct);
+  const order = revealOrder(state);
 
   el.tray.hidden = true;
+  el.waiting.hidden = false;
+  el.waitingText.textContent = byTimeout ? 'Czas minął.' : 'Zapadnie otwierają się…';
   el.stage.classList.add('is-revealed');
   lanes.forEach((node) => {
     node.hit.disabled = true;
@@ -2950,71 +3622,126 @@ function lockIn(byTimeout = false) {
 
   sfx.lock();
 
-  // 1. napięcie — moment ciszy przed otwarciem
-  later(() => sfx.tension(), 250);
+  // Kroki układamy z góry — dzięki temu „Pokaż wynik” po prostu wykonuje
+  // wszystkie pozostałe naraz, zamiast osobno odtwarzać całą sekwencję.
+  let running = state.result.balanceBefore;
+  revealSteps = [];
 
-  // 2. zapadnie się otwierają
-  later(() => {
-    sfx.doors();
-    traps.forEach((trap, i) => {
-      if (correctSet.has(i)) {
-        trap.classList.add('is-safe');
-        lanes[i].lane.classList.add('is-safe');
-      } else {
-        trap.classList.add('is-open');
-        lanes[i].lane.classList.add('is-doomed');
-      }
+  if (forfeited > 0) {
+    running -= forfeited;
+    const to = running;
+    revealSteps.push({
+      wait: BEAT.tension,
+      run: () => {
+        sfx.fall();
+        animateMoney(to, 600);
+        el.waitingText.textContent = `Czas minął — ${zl(forfeited)} zostaje w rękach i przepada.`;
+      },
     });
-  }, 1400);
+  }
 
-  // 3. paczki lecą w dół
-  later(() => {
-    let anyFell = false;
-    lanes.forEach((node, i) => {
-      if (!correctSet.has(i) && state.bets[i] > 0) {
-        node.stack.classList.add('is-falling');
-        anyFell = true;
-      }
+  order.forEach((index, position) => {
+    const stake = bets[index];
+    const isCorrect = correctSet.has(index);
+    const isFirst = position === 0 && forfeited === 0;
+
+    revealSteps.push({
+      wait: isFirst ? BEAT.tension : BEAT.spotlight,
+      run: () => {
+        lanes[index].lane.classList.add('is-next');
+        if (!isCorrect) sfx.tension();
+      },
     });
-    if (anyFell) sfx.fall();
-    if (kept > 0) later(() => sfx.safe(), 500);
-    else later(() => sfx.wrong(), 700);
-    animateMoney(el.balance, before, kept, 1200);
-  }, 1750);
 
-  // 4. podsumowanie rundy
-  later(() => {
-    el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
-    el.revealHeadline.classList.toggle('is-bad', kept === 0);
-
-    const parts = [];
-    if (kept === 0) parts.push('Cała kwota poleciała w dół.');
-    else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
-    else parts.push(`W dół poleciało ${zl(dropped)}.`);
-    if (forfeited > 0) {
-      parts.push(
-        byTimeout
-          ? `Czas minął — ${zl(forfeited)} zostało w rękach i przepadło.`
-          : `${zl(forfeited)} nie trafiło na żadną zapadnię.`,
-      );
+    if (isCorrect) {
+      revealSteps.push({
+        wait: BEAT.spotlight,
+        run: () => {
+          lanes[index].lane.classList.remove('is-next');
+          traps[index].classList.add('is-safe');
+          lanes[index].lane.classList.add('is-safe');
+          if (stake > 0) sfx.safe();
+          else sfx.doors();
+          el.waitingText.textContent =
+            stake > 0 ? `Poprawna odpowiedź — ${zl(stake)} zostaje.` : 'Poprawna odpowiedź.';
+        },
+      });
+    } else {
+      if (stake > 0) running -= stake;
+      const to = running;
+      revealSteps.push({
+        wait: stake > 0 ? BEAT.loadedDoor : BEAT.emptyDoor,
+        run: () => {
+          lanes[index].lane.classList.remove('is-next');
+          traps[index].classList.add('is-open');
+          lanes[index].lane.classList.add('is-doomed');
+          sfx.doors();
+          if (stake > 0) {
+            lanes[index].stack.classList.add('is-falling');
+            sfx.fall();
+            animateMoney(to, 900);
+            el.waitingText.textContent = `${LETTERS[index]} — w dół leci ${zl(stake)}.`;
+          } else {
+            el.waitingText.textContent = `${LETTERS[index]} — puste pole.`;
+          }
+        },
+      });
     }
-    el.revealDetail.textContent = parts.join(' ');
+  });
 
-    const question = currentQuestion(state);
-    const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
-    el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+  revealSteps.push({ wait: BEAT.finish, run: showRoundSummary });
+  runNextStep();
+}
 
-    el.btnNext.textContent = state.outcome === 'continue' ? 'Następne pytanie' : 'Podsumowanie';
-    el.reveal.hidden = false;
-    el.btnNext.focus();
-  }, 2900);
+function runNextStep() {
+  const step = revealSteps.shift();
+  if (!step) return;
+  later(() => {
+    step.run();
+    runNextStep();
+  }, step.wait);
+}
+
+/** „Pokaż wynik” — wykonuje wszystko, co zostało, bez czekania. */
+function skipReveal() {
+  if (!revealSteps.length) return;
+  clearTimers();
+  const rest = revealSteps;
+  revealSteps = [];
+  rest.forEach((step) => step.run());
+}
+
+function showRoundSummary() {
+  const { correct, kept, dropped, forfeited } = state.result;
+  const question = currentQuestion(state);
+
+  setBalance(kept);
+  el.waiting.hidden = true;
+
+  el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
+  el.revealHeadline.classList.toggle('is-bad', kept === 0);
+
+  const parts = [];
+  if (kept === 0) parts.push('Cała kwota poleciała w dół.');
+  else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
+  else parts.push(`W dół poleciało ${zl(dropped)}.`);
+  if (forfeited > 0) parts.push(`W tym ${zl(forfeited)}, które zostało w rękach.`);
+  el.revealDetail.textContent = parts.join(' ');
+
+  const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
+  el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+
+  el.btnNext.textContent = state.outcome === 'continue' ? 'Następna runda' : 'Podsumowanie';
+  el.reveal.hidden = false;
+  el.btnNext.focus();
 }
 
 function goNext() {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   state = advance(state);
   if (state.status === 'over') showEnd();
-  else renderRound();
+  else renderChoice();
 }
 
 /* ------------------------------------------------------------------ *
@@ -3049,11 +3776,13 @@ function showEnd() {
     item.className = row.kept > 0 ? 'summary__row' : 'summary__row is-bad';
     item.innerHTML = `
       <span class="summary__round">Runda ${row.round}</span>
+      <span class="summary__category"></span>
       <span class="summary__kept">${zl(row.kept)}</span>
       <span class="summary__lost${row.dropped > 0 ? '' : ' is-none'}">${
         row.dropped > 0 ? `−${zl(row.dropped)}` : '—'
       }</span>
     `;
+    item.querySelector('.summary__category').textContent = row.category;
     el.summary.append(item);
   });
 
@@ -3073,7 +3802,8 @@ function showEnd() {
  * ------------------------------------------------------------------ */
 
 function startGame(seed) {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   if (stopConfetti) {
     stopConfetti();
     stopConfetti = null;
@@ -3081,7 +3811,7 @@ function startGame(seed) {
   state = createGame({ questions: QUESTIONS, seed: seed || randomSeed() });
   grabSize = 1;
   showScreen('game');
-  renderRound();
+  renderChoice();
 }
 
 function putOn(index, all = false) {
@@ -3125,9 +3855,22 @@ function onKeyDown(event) {
   if (event.target.matches('input, textarea')) return;
   if (el.rulesDialog.open || !state) return;
 
-  if (state.status === 'revealed' && !el.reveal.hidden && (event.key === 'Enter' || event.key === ' ')) {
-    event.preventDefault();
-    goNext();
+  if (state.status === 'choosing') {
+    const digit = Number(event.key);
+    const cards = [...el.choiceCards.querySelectorAll('.choice__card')];
+    if (digit >= 1 && digit <= cards.length) {
+      event.preventDefault();
+      pickCategory(cards[digit - 1].dataset.category);
+    }
+    return;
+  }
+
+  if (state.status === 'revealed') {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (revealSteps.length) skipReveal();
+      else if (!el.reveal.hidden) goNext();
+    }
     return;
   }
   if (state.status !== 'placing') return;
@@ -3168,9 +3911,14 @@ function syncSoundButton() {
  * Podpięcie zdarzeń
  * ------------------------------------------------------------------ */
 
+el.choiceCards.addEventListener('click', (event) => {
+  const card = event.target.closest('.choice__card');
+  if (card) pickCategory(card.dataset.category);
+});
 el.lanes.addEventListener('click', onLaneClick);
 el.grabs.addEventListener('click', onGrabClick);
 el.btnLock.addEventListener('click', () => lockIn(false));
+el.btnSkip.addEventListener('click', skipReveal);
 el.btnNext.addEventListener('click', goNext);
 el.btnUndo.addEventListener('click', () => {
   state = undo(state);
@@ -3189,7 +3937,8 @@ el.seedInput.addEventListener('keydown', (e) => {
 });
 el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   if (stopConfetti) stopConfetti();
   stopTimer();
   refreshBestLabel();
@@ -3230,8 +3979,13 @@ syncSoundButton();
 refreshBestLabel();
 showScreen('start');
 
-// `emptyDoors` przydaje się przy diagnozie w konsoli przeglądarki
-window.__pnm = { get state() { return state; }, emptyDoors: () => emptyDoors(state) };
+// podgląd stanu w konsoli przeglądarki — przydaje się przy dopisywaniu pytań
+window.__pnm = {
+  get state() {
+    return state;
+  },
+  skipReveal,
+};
 })();
 </script>
   </body>

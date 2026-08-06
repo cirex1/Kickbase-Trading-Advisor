@@ -6,6 +6,9 @@
  *   .lanes  — ekrany z odpowiedziami i stosy paczek, w płaszczyźnie ekranu.
  * Dzięki temu spadające paczki animujemy zwykłym translateY, bez walki
  * z układem współrzędnych obróconej podłogi.
+ *
+ * Runda ma trzy odsłony: plansza z kategoriami, pytanie z rozkładaniem paczek
+ * i otwieranie zapadni — jedna po drugiej, w kolejności, którą wyznacza silnik.
  */
 
 import {
@@ -16,13 +19,16 @@ import {
   advance,
   canLock,
   canPlaceOn,
+  chooseCategory,
   clearBets,
   createGame,
   currentQuestion,
-  emptyDoors,
+  doorsInRound,
+  offeredCategories,
   placeBundles,
   placeRest,
   resolve,
+  revealOrder,
   roundSeconds,
   take,
   undo,
@@ -41,18 +47,25 @@ const BEST_KEY = 'pnm.best';
 const STACK_HEIGHT = 104;
 const HAND_STACK_HEIGHT = 34;
 
+/** Rytm otwierania zapadni (ms). */
+const BEAT = {
+  bumper: 1500,
+  tension: 1500, // cisza po zatwierdzeniu
+  spotlight: 420, // podświetlenie pola tuż przed otwarciem
+  emptyDoor: 900, // pusta zapadnia — otwiera się i nic nie spada
+  loadedDoor: 1800, // zapadnia z pieniędzmi — paczki muszą dolecieć
+  finish: 1300, // od poprawnej zapadni do podsumowania
+};
+
 const money = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const zl = (value) => `${money.format(Math.round(value))} zł`;
-const paczki = (n) => `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
+const paczki = (n) =>
+  `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
 
 const $ = (id) => document.getElementById(id);
 
 const el = {
-  screens: {
-    start: $('screen-start'),
-    game: $('screen-game'),
-    end: $('screen-end'),
-  },
+  screens: { start: $('screen-start'), game: $('screen-game'), end: $('screen-end') },
   best: $('best-score'),
   seedInput: $('seed-input'),
   btnStart: $('btn-start'),
@@ -67,6 +80,9 @@ const el = {
   timerRing: $('timer-ring'),
   timer: $('timer'),
 
+  choice: $('choice'),
+  choiceCards: $('choice-cards'),
+  question: $('question'),
   category: $('q-category'),
   questionText: $('q-text'),
   finalHint: $('q-final'),
@@ -74,6 +90,9 @@ const el = {
   stage: $('stage'),
   floor: $('floor'),
   lanes: $('lanes'),
+  bumper: $('bumper'),
+  bumperRound: $('bumper-round'),
+  bumperStake: $('bumper-stake'),
 
   tray: $('tray'),
   unplaced: $('unplaced'),
@@ -84,6 +103,10 @@ const el = {
   btnClear: $('btn-clear'),
   btnLock: $('btn-lock'),
   lockHint: $('lock-hint'),
+
+  waiting: $('waiting'),
+  waitingText: $('waiting-text'),
+  btnSkip: $('btn-skip'),
 
   reveal: $('reveal'),
   revealHeadline: $('reveal-headline'),
@@ -109,7 +132,10 @@ let timerId = null;
 let deadline = 0;
 let lastWholeSecond = null;
 let stopConfetti = null;
-let revealTimers = [];
+let timers = [];
+let shownBalance = START_BALANCE;
+/** Kroki otwierania zapadni — trzymamy je, żeby dało się je przewinąć. */
+let revealSteps = [];
 
 /* ------------------------------------------------------------------ *
  * Pomocnicze
@@ -126,25 +152,32 @@ function randomSeed() {
   return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 }
 
-function clearRevealTimers() {
-  revealTimers.forEach(clearTimeout);
-  revealTimers = [];
+function clearTimers() {
+  timers.forEach(clearTimeout);
+  timers = [];
 }
 
 function later(fn, delay) {
-  revealTimers.push(setTimeout(fn, delay));
+  timers.push(setTimeout(fn, delay));
 }
 
 /** Płynne przeliczanie kwoty na liczniku. */
-function animateMoney(node, from, to, duration = 900) {
+function animateMoney(to, duration = 700) {
+  const from = shownBalance;
+  shownBalance = to;
   const start = performance.now();
   const step = (now) => {
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3);
-    node.textContent = zl(from + (to - from) * eased);
+    el.balance.textContent = zl(from + (to - from) * eased);
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+}
+
+function setBalance(value) {
+  shownBalance = value;
+  el.balance.textContent = zl(value);
 }
 
 function readBest() {
@@ -197,27 +230,17 @@ function renderStack(node, amount, laneIndex = 0, fallbackHeight = STACK_HEIGHT)
 }
 
 /* ------------------------------------------------------------------ *
- * Rysowanie rundy
+ * Scena
  * ------------------------------------------------------------------ */
 
-function renderRound() {
-  clearRevealTimers();
-  const question = currentQuestion(state);
-  const doors = question.answers.length;
-
-  el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
-  el.category.textContent = question.category;
-  el.questionText.textContent = question.text;
-  el.finalHint.hidden = !question.isFinal;
-
-  el.reveal.hidden = true;
-  el.tray.hidden = false;
+/** Buduje puste zapadnie i ekrany — jeszcze zanim padnie pytanie. */
+function buildStage(doors) {
   el.stage.style.setProperty('--doors', String(doors));
   el.stage.classList.remove('is-revealed');
+  el.stage.classList.add('is-idle');
 
-  // warstwa zapadni
   el.floor.innerHTML = '';
-  traps = question.answers.map(() => {
+  traps = Array.from({ length: doors }, () => {
     const trap = document.createElement('div');
     trap.className = 'trap';
     trap.innerHTML = `
@@ -229,34 +252,110 @@ function renderRound() {
     return trap;
   });
 
-  // warstwa ekranów i stosów
   el.lanes.innerHTML = '';
-  lanes = question.answers.map((answer, index) => {
+  lanes = Array.from({ length: doors }, (_, index) => {
     const lane = document.createElement('div');
     lane.className = 'lane';
     lane.dataset.index = String(index);
     lane.innerHTML = `
-      <button class="lane__hit" type="button" data-act="place" aria-label="Połóż paczki na polu ${LETTERS[index]}"></button>
+      <button class="lane__hit" type="button" data-act="place" disabled aria-label="Pole ${LETTERS[index]}"></button>
       <div class="lane__panel">
         <span class="lane__letter">${LETTERS[index]}</span>
         <span class="lane__text"></span>
       </div>
-      <div class="lane__amount">0 zł</div>
+      <div class="lane__amount"></div>
       <div class="lane__stack"></div>
       <button class="lane__minus" type="button" data-act="take" title="Zabierz paczkę" aria-label="Zabierz paczkę z pola ${LETTERS[index]}">−</button>
     `;
-    lane.querySelector('.lane__text').textContent = answer.text;
     el.lanes.append(lane);
     return {
       lane,
+      text: lane.querySelector('.lane__text'),
       amount: lane.querySelector('.lane__amount'),
       stack: lane.querySelector('.lane__stack'),
       hit: lane.querySelector('.lane__hit'),
       minus: lane.querySelector('.lane__minus'),
     };
   });
+}
 
-  el.balance.textContent = zl(state.balance);
+/* ------------------------------------------------------------------ *
+ * Odsłona 1 — wybór kategorii
+ * ------------------------------------------------------------------ */
+
+function renderChoice() {
+  clearTimers();
+  idleTimer();
+
+  el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
+  el.question.hidden = true;
+  el.choice.hidden = true;
+  el.tray.hidden = true;
+  el.reveal.hidden = true;
+  el.waiting.hidden = true;
+  setBalance(state.balance);
+  buildStage(doorsInRound(state));
+
+  // plansza rundy — krótka zapowiedź, jak przed przerwą na antenie
+  el.bumperRound.textContent = `Runda ${state.roundIndex + 1}`;
+  el.bumperStake.textContent = zl(state.balance);
+  el.bumper.hidden = false;
+  el.bumper.classList.remove('is-running');
+  void el.bumper.offsetWidth;
+  el.bumper.classList.add('is-running');
+  sfx.bumper();
+
+  later(() => {
+    el.bumper.hidden = true;
+    const offer = offeredCategories(state);
+    el.choiceCards.innerHTML = '';
+    offer.forEach((category, i) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'choice__card';
+      card.dataset.category = category;
+      card.style.setProperty('--i', String(i));
+      card.innerHTML = `
+        <span class="choice__label">Kategoria ${i + 1}</span>
+        <span class="choice__name"></span>
+      `;
+      card.querySelector('.choice__name').textContent = category;
+      el.choiceCards.append(card);
+    });
+    el.choice.hidden = false;
+    el.choiceCards.querySelector('.choice__card')?.focus();
+  }, BEAT.bumper);
+}
+
+function pickCategory(category) {
+  if (!state || state.status !== 'choosing') return;
+  clearTimers();
+  sfx.pick();
+  state = chooseCategory(state, category);
+  renderQuestion();
+}
+
+/* ------------------------------------------------------------------ *
+ * Odsłona 2 — pytanie i rozkładanie paczek
+ * ------------------------------------------------------------------ */
+
+function renderQuestion() {
+  const question = currentQuestion(state);
+
+  el.choice.hidden = true;
+  el.question.hidden = false;
+  el.category.textContent = question.category;
+  el.questionText.textContent = question.text;
+  el.finalHint.hidden = !question.isFinal;
+
+  el.stage.classList.remove('is-idle');
+  lanes.forEach((node, index) => {
+    node.text.textContent = question.answers[index].text;
+  });
+
+  el.tray.hidden = false;
+  el.reveal.hidden = true;
+  el.waiting.hidden = true;
   renderStakes();
   startTimer();
 }
@@ -323,7 +422,7 @@ function startTimer() {
   const seconds = roundSeconds(state);
   deadline = performance.now() + seconds * 1000;
   lastWholeSecond = null;
-  el.timer.classList.remove('is-urgent');
+  el.timer.classList.remove('is-urgent', 'is-off');
   el.timerRing.style.strokeDasharray = String(RING_LENGTH);
   tick(seconds);
   timerId = setInterval(() => tick(seconds), 100);
@@ -332,6 +431,15 @@ function startTimer() {
 function stopTimer() {
   if (timerId) clearInterval(timerId);
   timerId = null;
+}
+
+/** Zegar poza rundą: nie odlicza, więc nie udaje, że odlicza. */
+function idleTimer() {
+  stopTimer();
+  el.timer.classList.remove('is-urgent');
+  el.timer.classList.add('is-off');
+  el.timerValue.textContent = '–';
+  el.timerRing.style.strokeDashoffset = String(RING_LENGTH);
 }
 
 function tick(seconds) {
@@ -354,20 +462,24 @@ function tick(seconds) {
 }
 
 /* ------------------------------------------------------------------ *
- * Otwieranie zapadni
+ * Odsłona 3 — zapadnie otwierają się po kolei
  * ------------------------------------------------------------------ */
 
 function lockIn(byTimeout = false) {
   if (!state || state.status !== 'placing') return;
   if (!byTimeout && !canLock(state)) return;
-  stopTimer();
+  idleTimer();
+  clearTimers();
 
-  const before = state.balance;
+  const bets = state.bets.slice();
   state = resolve(state);
-  const { correct, kept, dropped, forfeited } = state.result;
+  const { correct, forfeited } = state.result;
   const correctSet = new Set(correct);
+  const order = revealOrder(state);
 
   el.tray.hidden = true;
+  el.waiting.hidden = false;
+  el.waitingText.textContent = byTimeout ? 'Czas minął.' : 'Zapadnie otwierają się…';
   el.stage.classList.add('is-revealed');
   lanes.forEach((node) => {
     node.hit.disabled = true;
@@ -376,71 +488,126 @@ function lockIn(byTimeout = false) {
 
   sfx.lock();
 
-  // 1. napięcie — moment ciszy przed otwarciem
-  later(() => sfx.tension(), 250);
+  // Kroki układamy z góry — dzięki temu „Pokaż wynik” po prostu wykonuje
+  // wszystkie pozostałe naraz, zamiast osobno odtwarzać całą sekwencję.
+  let running = state.result.balanceBefore;
+  revealSteps = [];
 
-  // 2. zapadnie się otwierają
-  later(() => {
-    sfx.doors();
-    traps.forEach((trap, i) => {
-      if (correctSet.has(i)) {
-        trap.classList.add('is-safe');
-        lanes[i].lane.classList.add('is-safe');
-      } else {
-        trap.classList.add('is-open');
-        lanes[i].lane.classList.add('is-doomed');
-      }
+  if (forfeited > 0) {
+    running -= forfeited;
+    const to = running;
+    revealSteps.push({
+      wait: BEAT.tension,
+      run: () => {
+        sfx.fall();
+        animateMoney(to, 600);
+        el.waitingText.textContent = `Czas minął — ${zl(forfeited)} zostaje w rękach i przepada.`;
+      },
     });
-  }, 1400);
+  }
 
-  // 3. paczki lecą w dół
-  later(() => {
-    let anyFell = false;
-    lanes.forEach((node, i) => {
-      if (!correctSet.has(i) && state.bets[i] > 0) {
-        node.stack.classList.add('is-falling');
-        anyFell = true;
-      }
+  order.forEach((index, position) => {
+    const stake = bets[index];
+    const isCorrect = correctSet.has(index);
+    const isFirst = position === 0 && forfeited === 0;
+
+    revealSteps.push({
+      wait: isFirst ? BEAT.tension : BEAT.spotlight,
+      run: () => {
+        lanes[index].lane.classList.add('is-next');
+        if (!isCorrect) sfx.tension();
+      },
     });
-    if (anyFell) sfx.fall();
-    if (kept > 0) later(() => sfx.safe(), 500);
-    else later(() => sfx.wrong(), 700);
-    animateMoney(el.balance, before, kept, 1200);
-  }, 1750);
 
-  // 4. podsumowanie rundy
-  later(() => {
-    el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
-    el.revealHeadline.classList.toggle('is-bad', kept === 0);
-
-    const parts = [];
-    if (kept === 0) parts.push('Cała kwota poleciała w dół.');
-    else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
-    else parts.push(`W dół poleciało ${zl(dropped)}.`);
-    if (forfeited > 0) {
-      parts.push(
-        byTimeout
-          ? `Czas minął — ${zl(forfeited)} zostało w rękach i przepadło.`
-          : `${zl(forfeited)} nie trafiło na żadną zapadnię.`,
-      );
+    if (isCorrect) {
+      revealSteps.push({
+        wait: BEAT.spotlight,
+        run: () => {
+          lanes[index].lane.classList.remove('is-next');
+          traps[index].classList.add('is-safe');
+          lanes[index].lane.classList.add('is-safe');
+          if (stake > 0) sfx.safe();
+          else sfx.doors();
+          el.waitingText.textContent =
+            stake > 0 ? `Poprawna odpowiedź — ${zl(stake)} zostaje.` : 'Poprawna odpowiedź.';
+        },
+      });
+    } else {
+      if (stake > 0) running -= stake;
+      const to = running;
+      revealSteps.push({
+        wait: stake > 0 ? BEAT.loadedDoor : BEAT.emptyDoor,
+        run: () => {
+          lanes[index].lane.classList.remove('is-next');
+          traps[index].classList.add('is-open');
+          lanes[index].lane.classList.add('is-doomed');
+          sfx.doors();
+          if (stake > 0) {
+            lanes[index].stack.classList.add('is-falling');
+            sfx.fall();
+            animateMoney(to, 900);
+            el.waitingText.textContent = `${LETTERS[index]} — w dół leci ${zl(stake)}.`;
+          } else {
+            el.waitingText.textContent = `${LETTERS[index]} — puste pole.`;
+          }
+        },
+      });
     }
-    el.revealDetail.textContent = parts.join(' ');
+  });
 
-    const question = currentQuestion(state);
-    const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
-    el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+  revealSteps.push({ wait: BEAT.finish, run: showRoundSummary });
+  runNextStep();
+}
 
-    el.btnNext.textContent = state.outcome === 'continue' ? 'Następne pytanie' : 'Podsumowanie';
-    el.reveal.hidden = false;
-    el.btnNext.focus();
-  }, 2900);
+function runNextStep() {
+  const step = revealSteps.shift();
+  if (!step) return;
+  later(() => {
+    step.run();
+    runNextStep();
+  }, step.wait);
+}
+
+/** „Pokaż wynik” — wykonuje wszystko, co zostało, bez czekania. */
+function skipReveal() {
+  if (!revealSteps.length) return;
+  clearTimers();
+  const rest = revealSteps;
+  revealSteps = [];
+  rest.forEach((step) => step.run());
+}
+
+function showRoundSummary() {
+  const { correct, kept, dropped, forfeited } = state.result;
+  const question = currentQuestion(state);
+
+  setBalance(kept);
+  el.waiting.hidden = true;
+
+  el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
+  el.revealHeadline.classList.toggle('is-bad', kept === 0);
+
+  const parts = [];
+  if (kept === 0) parts.push('Cała kwota poleciała w dół.');
+  else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
+  else parts.push(`W dół poleciało ${zl(dropped)}.`);
+  if (forfeited > 0) parts.push(`W tym ${zl(forfeited)}, które zostało w rękach.`);
+  el.revealDetail.textContent = parts.join(' ');
+
+  const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
+  el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+
+  el.btnNext.textContent = state.outcome === 'continue' ? 'Następna runda' : 'Podsumowanie';
+  el.reveal.hidden = false;
+  el.btnNext.focus();
 }
 
 function goNext() {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   state = advance(state);
   if (state.status === 'over') showEnd();
-  else renderRound();
+  else renderChoice();
 }
 
 /* ------------------------------------------------------------------ *
@@ -475,11 +642,13 @@ function showEnd() {
     item.className = row.kept > 0 ? 'summary__row' : 'summary__row is-bad';
     item.innerHTML = `
       <span class="summary__round">Runda ${row.round}</span>
+      <span class="summary__category"></span>
       <span class="summary__kept">${zl(row.kept)}</span>
       <span class="summary__lost${row.dropped > 0 ? '' : ' is-none'}">${
         row.dropped > 0 ? `−${zl(row.dropped)}` : '—'
       }</span>
     `;
+    item.querySelector('.summary__category').textContent = row.category;
     el.summary.append(item);
   });
 
@@ -499,7 +668,8 @@ function showEnd() {
  * ------------------------------------------------------------------ */
 
 function startGame(seed) {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   if (stopConfetti) {
     stopConfetti();
     stopConfetti = null;
@@ -507,7 +677,7 @@ function startGame(seed) {
   state = createGame({ questions: QUESTIONS, seed: seed || randomSeed() });
   grabSize = 1;
   showScreen('game');
-  renderRound();
+  renderChoice();
 }
 
 function putOn(index, all = false) {
@@ -551,9 +721,22 @@ function onKeyDown(event) {
   if (event.target.matches('input, textarea')) return;
   if (el.rulesDialog.open || !state) return;
 
-  if (state.status === 'revealed' && !el.reveal.hidden && (event.key === 'Enter' || event.key === ' ')) {
-    event.preventDefault();
-    goNext();
+  if (state.status === 'choosing') {
+    const digit = Number(event.key);
+    const cards = [...el.choiceCards.querySelectorAll('.choice__card')];
+    if (digit >= 1 && digit <= cards.length) {
+      event.preventDefault();
+      pickCategory(cards[digit - 1].dataset.category);
+    }
+    return;
+  }
+
+  if (state.status === 'revealed') {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (revealSteps.length) skipReveal();
+      else if (!el.reveal.hidden) goNext();
+    }
     return;
   }
   if (state.status !== 'placing') return;
@@ -594,9 +777,14 @@ function syncSoundButton() {
  * Podpięcie zdarzeń
  * ------------------------------------------------------------------ */
 
+el.choiceCards.addEventListener('click', (event) => {
+  const card = event.target.closest('.choice__card');
+  if (card) pickCategory(card.dataset.category);
+});
 el.lanes.addEventListener('click', onLaneClick);
 el.grabs.addEventListener('click', onGrabClick);
 el.btnLock.addEventListener('click', () => lockIn(false));
+el.btnSkip.addEventListener('click', skipReveal);
 el.btnNext.addEventListener('click', goNext);
 el.btnUndo.addEventListener('click', () => {
   state = undo(state);
@@ -615,7 +803,8 @@ el.seedInput.addEventListener('keydown', (e) => {
 });
 el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
-  clearRevealTimers();
+  clearTimers();
+  revealSteps = [];
   if (stopConfetti) stopConfetti();
   stopTimer();
   refreshBestLabel();
@@ -656,5 +845,10 @@ syncSoundButton();
 refreshBestLabel();
 showScreen('start');
 
-// `emptyDoors` przydaje się przy diagnozie w konsoli przeglądarki
-window.__pnm = { get state() { return state; }, emptyDoors: () => emptyDoors(state) };
+// podgląd stanu w konsoli przeglądarki — przydaje się przy dopisywaniu pytań
+window.__pnm = {
+  get state() {
+    return state;
+  },
+  skipReveal,
+};

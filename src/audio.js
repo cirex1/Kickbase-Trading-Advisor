@@ -76,6 +76,18 @@ function noise({ duration = 0.5, gain = 0.5, from = 2400, to = 200 } = {}) {
 }
 
 export const sfx = {
+  /** Plansza z numerem rundy — krótki sygnał stacji. */
+  bumper: () => {
+    [392, 523.25, 659.25].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', start: i * 0.07, duration: 0.3, gain: 0.5 }),
+    );
+    tone({ freq: 98, type: 'sine', duration: 0.6, gain: 0.45 });
+  },
+  /** Wybór kategorii. */
+  pick: () => {
+    tone({ freq: 660, type: 'triangle', duration: 0.1, gain: 0.45 });
+    tone({ freq: 990, type: 'triangle', start: 0.08, duration: 0.22, gain: 0.4 });
+  },
   /** Chwycenie pliku paczek. */
   grab: () => tone({ freq: 880, type: 'triangle', duration: 0.09, gain: 0.5 }),
   /** Paczka ląduje na zapadni — krótkie, papierowe klapnięcie. */
