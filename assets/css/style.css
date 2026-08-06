@@ -1690,3 +1690,32 @@ kbd {
 .rules__hint:empty {
   display: none;
 }
+
+/* --------------------------------------------------------------------- */
+/* Ostrzeżenie, gdy index.html otwarto bez serwera                       */
+/* --------------------------------------------------------------------- */
+
+.boot-warning {
+  position: fixed;
+  inset: auto 1rem 1rem;
+  z-index: 100;
+  display: grid;
+  gap: 0.3rem;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: #2a0d18;
+  box-shadow: var(--shadow);
+}
+
+.boot-warning span {
+  color: var(--ink-dim);
+  font-size: 0.88rem;
+}
+
+.boot-warning code {
+  color: var(--gold);
+  font-family: ui-monospace, monospace;
+}

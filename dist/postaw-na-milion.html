@@ -1707,6 +1707,35 @@ kbd {
 .rules__hint:empty {
   display: none;
 }
+
+/* --------------------------------------------------------------------- */
+/* Ostrzeżenie, gdy index.html otwarto bez serwera                       */
+/* --------------------------------------------------------------------- */
+
+.boot-warning {
+  position: fixed;
+  inset: auto 1rem 1rem;
+  z-index: 100;
+  display: grid;
+  gap: 0.3rem;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: #2a0d18;
+  box-shadow: var(--shadow);
+}
+
+.boot-warning span {
+  color: var(--ink-dim);
+  font-size: 0.88rem;
+}
+
+.boot-warning code {
+  color: var(--gold);
+  font-family: ui-monospace, monospace;
+}
 </style>
   </head>
   <body>
@@ -1945,35 +1974,11 @@ kbd {
     <script>
 (function () {
 'use strict';
-/* ===== src/storage.js ===== */
-/**
- * Bezpieczny dostęp do localStorage.
- *
- * W trybie prywatnym, w osadzonej ramce albo przy zablokowanych ciasteczkach
- * samo sięgnięcie po localStorage rzuca wyjątkiem. Bez tej osłony gra nie
- * wystartowałaby w ogóle — a przecież chodzi tylko o zapamiętanie wyniku
- * i ustawienia dźwięku.
- */
-
-function readSetting(key, fallback = null) {
-  try {
-    const value = localStorage.getItem(key);
-    return value === null ? fallback : value;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeSetting(key, value) {
-  try {
-    localStorage.setItem(key, String(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
+const __mod = {};
 
 /* ===== src/engine.js ===== */
+__mod['src/engine.js'] = (function () {
+
 /**
  * Silnik gry "Postaw na milion".
  *
@@ -2419,8 +2424,12 @@ function advance(state) {
 function isOver(state) {
   return state.status === 'over';
 }
+return { mulberry32, hashSeed, makeRng, shuffle, isWarmupRound, availableQuestions, offeredQuestions, prepareQuestion, trimToDoors, createGame, doorsInRound, isFinalRound, chooseOffer, currentQuestion, roundSeconds, unplaced, unplacedBundles, emptyDoors, canPlaceOn, canLock, place, placeBundles, take, placeRest, undo, clearBets, correctIndexes, revealOrder, resolve, advance, isOver, BUNDLE, START_BALANCE, ROUND_COUNT, GRAB_SIZES, ROUND_SECONDS, WARMUP_DIFFICULTY, CATEGORY_CHOICES, DOORS_PLAN, FINAL_DOORS };
+})();
 
 /* ===== src/questions.js ===== */
+__mod['src/questions.js'] = (function () {
+
 /**
  * Baza pytań.
  *
@@ -3875,10 +3884,44 @@ const QUESTIONS = [
     note: 'Zespół Jamesa Goslinga stworzył Javę w Sun Microsystems, a Netscape odpowiada za mylnie kojarzony z nią JavaScript.',
   },
 ];
+return { QUESTIONS };
+})();
 
+/* ===== src/storage.js ===== */
+__mod['src/storage.js'] = (function () {
 
+/**
+ * Bezpieczny dostęp do localStorage.
+ *
+ * W trybie prywatnym, w osadzonej ramce albo przy zablokowanych ciasteczkach
+ * samo sięgnięcie po localStorage rzuca wyjątkiem. Bez tej osłony gra nie
+ * wystartowałaby w ogóle — a przecież chodzi tylko o zapamiętanie wyniku
+ * i ustawienia dźwięku.
+ */
+
+function readSetting(key, fallback = null) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSetting(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+return { readSetting, writeSetting };
+})();
 
 /* ===== src/audio.js ===== */
+__mod['src/audio.js'] = (function () {
+const { readSetting, writeSetting } = __mod['src/storage.js'];
 /**
  * Dźwięki generowane w locie przez Web Audio API — zero plików, zero pobierania.
  * Kontekst audio tworzymy dopiero przy pierwszym kliknięciu, bo przeglądarki
@@ -4036,8 +4079,12 @@ function toggleSound() {
   if (enabled) sfx.grab();
   return enabled;
 }
+return { isSoundOn, toggleSound, sfx };
+})();
 
 /* ===== src/confetti.js ===== */
+__mod['src/confetti.js'] = (function () {
+
 /**
  * Minimalne konfetti na <canvas>. Bez bibliotek, bez zależności.
  */
@@ -4111,8 +4158,282 @@ function burst(canvas, { count = 180, duration = 4200 } = {}) {
     ctx.clearRect(0, 0, w(), h());
   };
 }
+return { burst };
+})();
+
+/* ===== src/speech.js ===== */
+__mod['src/speech.js'] = (function () {
+const { readSetting, writeSetting } = __mod['src/storage.js'];
+/**
+ * Lektor — czyta hasła, pytania i rozwiązania polskim głosem systemowym.
+ *
+ * Korzystamy z Web Speech API, bo jako jedyna droga spełnia wszystkie trzy
+ * warunki tego projektu naraz: nie waży ani bajta, działa spod file:// i nie
+ * dotyka jej Content-Security-Policy — synteza mowy nie jest z punktu widzenia
+ * CSP żadnym pobraniem, więc nie trzeba otwierać `media-src`.
+ *
+ * Cena: głos daje system, nie my. Dlatego bierzemy wyłącznie głosy
+ * z `localService === true`. To gwarantuje działanie bez sieci, a przy okazji
+ * omija błąd Chromium, w którym mowa z głosów serwerowych urywa się po
+ * kilkunastu sekundach.
+ *
+ * SSML odpada — przeglądarki go nie wspierają, a macOS potrafi przeczytać
+ * znaczniki na głos. Pauzy i zmiany tempa robimy więc dzieląc tekst na
+ * kawałki i czekając między nimi.
+ */
+
+
+
+const ON_KEY = 'pnm.lektor';
+const VOICE_KEY = 'pnm.glos';
+
+/** Znane dobre głosy polskie, od najlepszego. Dopasowanie po fragmencie nazwy. */
+const PREFERRED = [
+  'google polski',
+  'google polish',
+  'zosia',
+  'krzysztof',
+  'ewa',
+  'jacek',
+  'agnieszka',
+  'paulina',
+  'adam',
+];
+
+/** Syntezatory ostatniej szansy — zrozumiałe, ale brzmią jak robot z lat 80. */
+const ROBOTIC = /espeak|festival|mbrola|pico|flite|sam\b/;
+
+/** Chrome tnie dłuższe wypowiedzi, więc dzielimy je na zdania. */
+const MAX_CHUNK = 180;
+
+const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+
+let available = [];
+let voice = null;
+let unlocked = false;
+let enabled = readSetting(ON_KEY) === 'on';
+let held = null; // twarda referencja: bez niej zbieracz śmieci potrafi uciszyć mowę
+let generation = 0; // rośnie przy każdym stop() — przerywa trwającą sekwencję
+
+const isPolish = (v) => /^pl($|[-_])/i.test(v.lang || '');
+
+function score(v) {
+  const name = `${v.name || ''} ${v.voiceURI || ''}`.toLowerCase();
+  let points = 0;
+  const rank = PREFERRED.findIndex((k) => name.includes(k));
+  if (rank >= 0) points += (PREFERRED.length - rank) * 100;
+  if (ROBOTIC.test(name)) points -= 1000;
+  if (v.localService) points += 400; // bez sieci i bez błędu z urywaniem
+  if (/pl[-_]pl/i.test(v.lang)) points += 20;
+  return points;
+}
+
+/**
+ * `getVoices()` bywa puste przy pierwszym wywołaniu. Zdarzenie `voiceschanged`
+ * na części przeglądarek nie pada nigdy, a Safari wypełnia listę od razu —
+ * dlatego nasłuchujemy, odpytujemy w pętli i tak czy siak kończymy po chwili.
+ */
+function loadVoices(timeout = 3000) {
+  return new Promise((resolve) => {
+    if (!synth) return resolve([]);
+    let settled = false;
+    let poll = 0;
+    let bail = 0;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      synth.removeEventListener('voiceschanged', check);
+      clearInterval(poll);
+      clearTimeout(bail);
+      resolve(synth.getVoices() || []);
+    };
+    const check = () => {
+      if ((synth.getVoices() || []).length) finish();
+    };
+
+    if ((synth.getVoices() || []).length) return finish();
+    synth.addEventListener('voiceschanged', check);
+    poll = setInterval(check, 100);
+    bail = setTimeout(finish, timeout);
+  });
+}
+
+function isSupported() {
+  return Boolean(synth);
+}
+
+async function init() {
+  if (!synth) return { voices: [], voice: null, offlineSafe: false };
+  try {
+    synth.cancel(); // sprzątamy kolejkę po poprzedniej wizycie na stronie
+  } catch {
+    /* nic nie szkodzi */
+  }
+
+  const all = await loadVoices();
+  available = all.filter(isPolish).sort((a, b) => score(b) - score(a));
+
+  const remembered = readSetting(VOICE_KEY);
+  voice =
+    available.find((v) => v.voiceURI === remembered || v.name === remembered) ??
+    available.find((v) => v.localService) ??
+    available[0] ??
+    null;
+
+  return { voices: available, voice, offlineSafe: Boolean(voice?.localService) };
+}
+
+function voices() {
+  return available;
+}
+
+function currentVoice() {
+  return voice;
+}
+
+function setVoice(idOrName) {
+  const found = available.find((v) => v.voiceURI === idOrName || v.name === idOrName);
+  if (!found) return false;
+  voice = found;
+  writeSetting(VOICE_KEY, found.voiceURI || found.name);
+  return true;
+}
+
+function isOn() {
+  return enabled && Boolean(voice);
+}
+
+function toggle() {
+  enabled = !enabled;
+  writeSetting(ON_KEY, enabled ? 'on' : 'off');
+  if (!enabled) stop();
+  return enabled;
+}
+
+/**
+ * Pierwsze `speak()` musi wyjść z gestu użytkownika, inaczej przeglądarka
+ * odmawia. Wypuszczamy więc ciszę przy kliknięciu „Zaczynamy”.
+ */
+function unlock() {
+  if (unlocked || !synth) return;
+  const silence = new SpeechSynthesisUtterance(' ');
+  silence.volume = 0;
+  try {
+    synth.speak(silence);
+    unlocked = true;
+  } catch {
+    /* trudno — powiemy przy następnym kliknięciu */
+  }
+}
+
+/** Dzieli tekst na kawałki na granicach zdań. */
+function chunk(text) {
+  const clean = String(text).replace(/\s+/g, ' ').trim();
+  if (clean.length <= MAX_CHUNK) return clean ? [clean] : [];
+
+  const sentences = clean.match(/[^.!?…]+[.!?…]*/g) || [clean];
+  const out = [];
+  let buffer = '';
+  const flush = () => {
+    if (buffer.trim()) out.push(buffer.trim());
+    buffer = '';
+  };
+  for (const sentence of sentences) {
+    if ((buffer + ' ' + sentence).length > MAX_CHUNK) flush();
+    if (sentence.length > MAX_CHUNK) {
+      for (const word of sentence.split(' ')) {
+        if ((buffer + ' ' + word).length > MAX_CHUNK) flush();
+        buffer += (buffer ? ' ' : '') + word;
+      }
+      flush();
+    } else {
+      buffer += (buffer ? ' ' : '') + sentence;
+    }
+  }
+  flush();
+  return out;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function speakChunk(text, { rate = 0.95, pitch = 1 }) {
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    held = utterance;
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || 'pl-PL';
+    utterance.rate = rate;
+    utterance.pitch = pitch;
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      held = null;
+      resolve();
+    };
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    // koło ratunkowe: gdyby żadne zdarzenie nie padło, nie blokujemy sekwencji
+    setTimeout(finish, Math.max(3500, text.length * 200));
+    synth.speak(utterance);
+  });
+}
+
+/**
+ * Mówi po kolei. Segment to tekst albo `{ text, rate, pitch, pauseAfter }`.
+ * Nie czekamy na to w interfejsie — mowa ma towarzyszyć grze, nie wstrzymywać jej.
+ */
+async function say(segments, defaults = {}) {
+  if (!isOn() || !unlocked) return false;
+  const mine = ++generation;
+  try {
+    synth.cancel();
+  } catch {
+    return false;
+  }
+
+  const list = (Array.isArray(segments) ? segments : [segments])
+    .filter(Boolean)
+    .map((s) => (typeof s === 'string' ? { text: s } : s));
+
+  for (const segment of list) {
+    for (const part of chunk(segment.text)) {
+      if (mine !== generation) return false; // ktoś w międzyczasie przerwał
+      await speakChunk(part, { ...defaults, ...segment });
+    }
+    if (segment.pauseAfter) await sleep(segment.pauseAfter);
+  }
+  return mine === generation;
+}
+
+function stop() {
+  generation++;
+  held = null;
+  try {
+    synth?.cancel();
+  } catch {
+    /* nic nie szkodzi */
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', stop);
+}
+return { isSupported, init, voices, currentVoice, setVoice, isOn, toggle, unlock, say, stop };
+})();
 
 /* ===== src/app.js ===== */
+__mod['src/app.js'] = (function () {
+const { BUNDLE, GRAB_SIZES, ROUND_COUNT, START_BALANCE, advance, canLock, canPlaceOn, chooseOffer, clearBets, createGame, currentQuestion, doorsInRound, offeredQuestions, placeBundles, placeRest, resolve, revealOrder, roundSeconds, take, undo, unplaced, unplacedBundles, } = __mod['src/engine.js'];
+const { QUESTIONS } = __mod['src/questions.js'];
+const { isSoundOn, sfx, toggleSound } = __mod['src/audio.js'];
+const { burst } = __mod['src/confetti.js'];
+const { readSetting, writeSetting } = __mod['src/storage.js'];
+const lektor = __mod['src/speech.js'];
 /**
  * Warstwa prezentacji: łączy silnik gry (src/engine.js) ze sceną w DOM-ie.
  *
@@ -5039,7 +5360,26 @@ window.__pnm = {
   skipReveal,
   lektor,
 };
+return {  };
+})();
 })();
 </script>
+
+    <!-- Ten plik potrzebuje serwera HTTP: przeglądarki blokują moduły ES
+         otwierane przez file://. Bez ostrzeżenia strona wygląda normalnie,
+         tylko żaden przycisk nie reaguje — a to najgorszy rodzaj awarii.
+         W wersji jednoplikowej __pnm istnieje, więc komunikat się nie pokaże. -->
+    <script>
+      setTimeout(function () {
+        if (window.__pnm) return;
+        var box = document.createElement('div');
+        box.className = 'boot-warning';
+        box.innerHTML =
+          '<strong>Ta strona wymaga serwera.</strong>' +
+          '<span>Otwórz zamiast niej <code>dist/postaw-na-milion.html</code> — ' +
+          'ten plik działa po prostu z dysku, dwuklikiem.</span>';
+        document.body.appendChild(box);
+      }, 1500);
+    </script>
   </body>
 </html>

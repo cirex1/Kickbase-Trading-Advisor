@@ -250,5 +250,22 @@
     </dialog>
 
     <script type="module" src="src/app.js"></script>
+
+    <!-- Ten plik potrzebuje serwera HTTP: przeglądarki blokują moduły ES
+         otwierane przez file://. Bez ostrzeżenia strona wygląda normalnie,
+         tylko żaden przycisk nie reaguje — a to najgorszy rodzaj awarii.
+         W wersji jednoplikowej __pnm istnieje, więc komunikat się nie pokaże. -->
+    <script>
+      setTimeout(function () {
+        if (window.__pnm) return;
+        var box = document.createElement('div');
+        box.className = 'boot-warning';
+        box.innerHTML =
+          '<strong>Ta strona wymaga serwera.</strong>' +
+          '<span>Otwórz zamiast niej <code>dist/postaw-na-milion.html</code> — ' +
+          'ten plik działa po prostu z dysku, dwuklikiem.</span>';
+        document.body.appendChild(box);
+      }, 1500);
+    </script>
   </body>
 </html>
