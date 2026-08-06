@@ -130,6 +130,7 @@ body {
 .mark {
   --mark: 1; /* mnożnik rozmiaru */
   position: relative;
+  pointer-events: none;
   flex: none;
   width: calc(210px * var(--mark));
   height: calc(96px * var(--mark));
@@ -246,9 +247,12 @@ body {
   letter-spacing: calc(-1px * var(--mark));
 }
 
-/* snop światła zza znaku — tylko na ekranie startowym */
+/* Snop światła zza znaku — tylko na ekranie startowym.
+   Jest znacznie większy niż sam znak i sięga aż pod pasek z przyciskami,
+   więc bez pointer-events: none przechwytywałby kliknięcia w „Zasady”. */
 .mark__beam {
   position: absolute;
+  pointer-events: none;
   left: 50%;
   top: 50%;
   width: calc(560px * var(--mark));
@@ -1631,20 +1635,58 @@ kbd {
   }
 }
 
+/* Reguła obejmuje wszystko, co się rusza — łatwiej dopisać wyjątek niż
+   pamiętać o dopisaniu każdej nowej animacji z osobna. Paczki nadal spadają,
+   bo to nie ozdobnik, tylko informacja o tym, co się właśnie stało. */
 @media (prefers-reduced-motion: reduce) {
-  .trap__flap,
-  .bundle {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 
   .lane__stack.is-falling .bundle {
-    animation-duration: 0.2s !important;
-    animation-delay: 0ms !important;
+    animation-duration: 0.35s !important;
   }
+}
 
-  .hud__cell--timer.is-urgent .ring__value,
-  .stage.is-revealed .lane.is-safe .lane__panel,
-  .lane.is-bumped .lane__amount {
-    animation: none !important;
-  }
+/* --------------------------------------------------------------------- */
+/* Lektor w oknie zasad                                                  */
+/* --------------------------------------------------------------------- */
+
+.rules__lead {
+  margin: 0 0 0.7rem;
+  color: var(--ink-dim);
+}
+
+.rules__voice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+.rules__voice select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.rules__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--gold);
+}
+
+.rules__hint:empty {
+  display: none;
 }

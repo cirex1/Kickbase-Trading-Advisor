@@ -2,7 +2,8 @@
  * Silnik gry "Postaw na milion".
  *
  * Przebieg rundy:
- *   'choosing' → gracz dostaje dwie kategorie do wyboru
+ *   'choosing' → gracz dostaje dwa hasła do wyboru; co się za nimi kryje,
+ *                 okazuje się dopiero po wskazaniu jednego z nich
  *   'placing'  → pada pytanie, gracz rozkłada paczki na zapadniach
  *   'revealed' → zapadnie otwierają się po kolei, pieniądze lecą w dół
  *
@@ -20,17 +21,38 @@ export const ROUND_COUNT = 8;
 /** Ile paczek naraz można chwycić (przyciski w tacy). */
 export const GRAB_SIZES = [1, 2, 4, 10];
 
-/** Czas na rozłożenie paczek w kolejnych rundach (w sekundach). */
-export const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
+/**
+ * Czas na rozłożenie paczek (w sekundach). W teleturnieju jest to około
+ * minuty na pytanie — tyle zostawiamy i my, skracając tylko finał.
+ */
+export const ROUND_SECONDS = [60, 60, 60, 60, 60, 60, 60, 45];
 
-/** Poziom trudności pytania w kolejnych rundach. */
-export const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+/**
+ * Pytania nie są ustawione w drabinkę trudności — w teleturnieju napięcie
+ * bierze się z malejącej liczby zapadni i rosnącej stawki, a nie z coraz
+ * trudniejszych pytań. Wyjątkiem jest pierwsza runda: to rozgrzewka, więc
+ * losujemy do niej wyłącznie pytania oznaczone jako łatwe.
+ *
+ * `difficulty: 1` znaczy zatem „nadaje się na rozgrzewkę”, a nie „pierwszy
+ * szczebel z pięciu”. Reszta puli jest jednym workiem.
+ */
+export const WARMUP_DIFFICULTY = 1;
 
-/** Ile kategorii dostaje gracz do wyboru przed pytaniem. */
+/** Ile haseł dostaje gracz do wyboru przed pytaniem. */
 export const CATEGORY_CHOICES = 2;
 
-/** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
-export const FINAL_DOORS = 2;
+/**
+ * Ile zapadni stoi w kolejnych rundach.
+ *
+ * Tak jest w teleturnieju: cztery pola do czwartego pytania, potem trzy,
+ * a w finale dwa. Pytanie robi się mechanicznie łatwiejsze dokładnie wtedy,
+ * gdy ryzyko rośnie — bo przy dwóch polach reguła pustej zapadni oznacza,
+ * że cała pula musi wylądować na jednej odpowiedzi.
+ */
+export const DOORS_PLAN = [4, 4, 4, 4, 3, 3, 3, 2];
+
+/** Ile zapadni zostaje w finale. */
+export const FINAL_DOORS = DOORS_PLAN[DOORS_PLAN.length - 1];
 
 /* ------------------------------------------------------------------ *
  * Losowość
@@ -85,34 +107,50 @@ function stageRng(state, stage) {
  * Dobór pytań
  * ------------------------------------------------------------------ */
 
-export function difficultyFor(roundIndex, plan = DIFFICULTY_PLAN) {
-  return plan[Math.min(roundIndex, plan.length - 1)];
+/** Czy w tej rundzie gramy pytaniem rozgrzewkowym. */
+export function isWarmupRound(state) {
+  return state.roundIndex === 0;
 }
 
 /**
- * Pytania dostępne w danej rundzie: o właściwej trudności i jeszcze niezadane.
- * Gdy pula na danym poziomie się wyczerpie, sięgamy po poziom najbliższy.
+ * Pytania dostępne w danej rundzie: jeszcze niezadane, a w pierwszej rundzie
+ * dodatkowo tylko te rozgrzewkowe. Gdyby którejś puli zabrakło, bierzemy
+ * cokolwiek zostało — brak pytania musiałby przerwać grę, a to gorsze niż
+ * zadanie łatwiejszego.
  */
 export function availableQuestions(state) {
-  const wanted = difficultyFor(state.roundIndex, state.plan);
   const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
-  const levels = [...new Set(unused.map((q) => q.difficulty))].sort(
-    (a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b,
-  );
-  for (const level of levels) {
-    const batch = unused.filter((q) => q.difficulty === level);
-    if (batch.length) return batch;
-  }
-  return [];
+  const warmup = (q) => q.difficulty === WARMUP_DIFFICULTY;
+  const wanted = isWarmupRound(state) ? unused.filter(warmup) : unused.filter((q) => !warmup(q));
+  return wanted.length ? wanted : unused;
 }
 
 /**
- * Dwie kategorie do wyboru. Jeśli na danym poziomie została tylko jedna,
- * gracz dostaje ją samą — wybór bez alternatywy nadal jest poprawną rundą.
+ * Dwa hasła do wyboru.
+ *
+ * W teleturnieju kategoria nie zdradza tematu — nosi przewrotną nazwę, której
+ * sens rozumie się dopiero po pytaniu. Dlatego wybór dotyczy konkretnych pytań,
+ * a nie dziedzin: gracz widzi wyłącznie `label`, a `category` (prawdziwy temat)
+ * wychodzi na jaw dopiero przy rozwiązaniu.
+ *
+ * Staramy się dobrać hasła z różnych dziedzin, żeby wybór nie sprowadzał się
+ * do dwóch pytań o to samo.
  */
-export function offeredCategories(state) {
-  const categories = [...new Set(availableQuestions(state).map((q) => q.category))];
-  return shuffle(categories, stageRng(state, 'kategorie')).slice(0, CATEGORY_CHOICES);
+export function offeredQuestions(state) {
+  const pool = shuffle(availableQuestions(state), stageRng(state, 'oferta'));
+  const picked = [];
+  for (const question of pool) {
+    if (picked.length >= CATEGORY_CHOICES) break;
+    if (picked.some((q) => q.category === question.category)) continue;
+    picked.push(question);
+  }
+  // gdy w puli zostały już tylko pytania z jednej dziedziny, bierzemy je mimo to
+  for (const question of pool) {
+    if (picked.length >= CATEGORY_CHOICES) break;
+    if (!picked.includes(question)) picked.push(question);
+  }
+  // `category` jako zapasowe hasło — pytanie bez wymyślonej nazwy nadal działa
+  return picked.map((q) => ({ id: q.id, label: q.label ?? q.category }));
 }
 
 /** Kopiuje pytanie z potasowanymi odpowiedziami. */
@@ -124,17 +162,24 @@ export function prepareQuestion(question, rng) {
 }
 
 /**
- * Finał: zostaje poprawna odpowiedź i jeden losowy dystraktor.
- * Kolejność znowu losowa, żeby poprawna nie lądowała zawsze po tej samej stronie.
+ * Ogranicza pytanie do liczby zapadni w danej rundzie.
+ *
+ * Zostaje poprawna odpowiedź i — koniecznie — ta oznaczona jako `rival`, czyli
+ * najpoważniejszy kontrkandydat. Gdyby wypadała losowo, pytanie robiłoby się
+ * banalne dokładnie wtedy, gdy na placu boju zostałby oczywisty odsiew.
+ * Resztę miejsc, jeśli jakieś zostały, dobieramy losowo.
  */
-export function trimToFinal(question, rng, doors = FINAL_DOORS) {
+export function trimToDoors(question, rng, doors) {
+  if (doors >= question.answers.length) return question;
   const correct = question.answers.filter((a) => a.correct);
-  const wrong = shuffle(
-    question.answers.filter((a) => !a.correct),
+  const wrong = question.answers.filter((a) => !a.correct);
+  const rivals = wrong.filter((a) => a.rival);
+  const rest = shuffle(
+    wrong.filter((a) => !a.rival),
     rng,
   );
-  const kept = [...correct, ...wrong].slice(0, Math.max(doors, correct.length + 1));
-  return { ...question, answers: shuffle(kept, rng), isFinal: true };
+  const kept = [...correct, ...rivals, ...rest].slice(0, Math.max(doors, correct.length + 1));
+  return { ...question, answers: shuffle(kept, rng) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -145,11 +190,11 @@ export function createGame({
   questions,
   seed = 'domyslne',
   startBalance = START_BALANCE,
-  plan = DIFFICULTY_PLAN,
+  doorsPlan = DOORS_PLAN,
 } = {}) {
   return {
     seed: String(seed),
-    plan,
+    doorsPlan,
     pool: questions,
     startBalance,
     balance: startBalance,
@@ -167,27 +212,33 @@ export function createGame({
 
 /** Ile zapadni stoi w tej rundzie — jeszcze zanim padnie pytanie. */
 export function doorsInRound(state) {
-  return isFinalRound(state) ? FINAL_DOORS : 4;
+  const plan = state.doorsPlan ?? DOORS_PLAN;
+  return plan[Math.min(state.roundIndex, plan.length - 1)];
 }
 
 export function isFinalRound(state) {
-  return state.roundIndex >= state.plan.length - 1;
+  const plan = state.doorsPlan ?? DOORS_PLAN;
+  return state.roundIndex >= plan.length - 1;
 }
 
 /**
- * Gracz wybiera kategorię — dopiero teraz losuje się pytanie.
+ * Gracz wskazuje hasło — dopiero teraz odsłania się pytanie, które się za nim kryło.
  */
-export function chooseCategory(state, category) {
+export function chooseOffer(state, id) {
   if (state.status !== 'choosing') {
-    throw new Error('Kategorię wybiera się przed pytaniem.');
+    throw new Error('Hasło wybiera się przed pytaniem.');
   }
-  const candidates = availableQuestions(state).filter((q) => q.category === category);
-  if (!candidates.length) throw new Error(`Brak pytań w kategorii ${category}.`);
+  if (!offeredQuestions(state).some((o) => o.id === id)) {
+    throw new Error(`Hasło ${id} nie jest w tej rundzie do wyboru.`);
+  }
+  const picked = state.pool.find((q) => q.id === id);
 
-  const rng = stageRng(state, `pytanie:${category}`);
-  const picked = shuffle(candidates, rng)[0];
-  let question = prepareQuestion(picked, rng);
-  if (isFinalRound(state)) question = trimToFinal(question, rng);
+  const rng = stageRng(state, `pytanie:${id}`);
+  const doors = doorsInRound(state);
+  const question = {
+    ...trimToDoors(prepareQuestion(picked, rng), rng, doors),
+    isFinal: isFinalRound(state),
+  };
 
   return {
     ...state,

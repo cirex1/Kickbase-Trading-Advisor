@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   BUNDLE,
   CATEGORY_CHOICES,
-  DIFFICULTY_PLAN,
+  DOORS_PLAN,
   FINAL_DOORS,
   GRAB_SIZES,
   ROUND_COUNT,
@@ -14,20 +14,23 @@ import {
   availableQuestions,
   canLock,
   canPlaceOn,
-  chooseCategory,
+  chooseOffer,
   clearBets,
   createGame,
   currentQuestion,
-  difficultyFor,
+  WARMUP_DIFFICULTY,
   doorsInRound,
   emptyDoors,
   isFinalRound,
-  offeredCategories,
+  isWarmupRound,
+  makeRng,
+  offeredQuestions,
   place,
   placeBundles,
   placeRest,
   resolve,
   revealOrder,
+  trimToDoors,
   take,
   undo,
   unplaced,
@@ -37,8 +40,8 @@ import { QUESTIONS } from '../src/questions.js';
 
 const newGame = (seed = 'test') => createGame({ questions: QUESTIONS, seed });
 
-/** Rozpoczyna rundę, biorąc pierwszą z proponowanych kategorii. */
-const enterRound = (state) => chooseCategory(state, offeredCategories(state)[0]);
+/** Rozpoczyna rundę, biorąc pierwsze z proponowanych haseł. */
+const enterRound = (state) => chooseOffer(state, offeredQuestions(state)[0].id);
 
 const goodIndex = (state) => currentQuestion(state).answers.findIndex((a) => a.correct);
 const badIndex = (state) => currentQuestion(state).answers.findIndex((a) => !a.correct);
@@ -65,23 +68,34 @@ test('każde pytanie ma cztery odpowiedzi i dokładnie jedną poprawną', () => 
   }
 });
 
-test('na każdym poziomie trudności starczy pytań i kategorii na cały plan', () => {
-  for (const level of new Set(DIFFICULTY_PLAN)) {
-    const rounds = DIFFICULTY_PLAN.filter((d) => d === level).length;
-    const batch = QUESTIONS.filter((q) => q.difficulty === level);
-    const categories = new Set(batch.map((q) => q.category));
-    assert.ok(batch.length >= rounds, `poziom ${level}: ${batch.length} pytań, potrzeba ${rounds}`);
-    // po zużyciu pytań z wcześniejszych rund wciąż musi zostać z czego wybierać
-    assert.ok(
-      categories.size >= CATEGORY_CHOICES + rounds - 1,
-      `poziom ${level}: tylko ${categories.size} kategorii — za mało na wybór w ${rounds} rundach`,
-    );
-  }
+test('starczy pytań na rozgrzewkę i na resztę partii', () => {
+  const warmup = QUESTIONS.filter((q) => q.difficulty === WARMUP_DIFFICULTY);
+  const rest = QUESTIONS.filter((q) => q.difficulty !== WARMUP_DIFFICULTY);
+
+  // pierwsza runda: dwa hasła do wyboru, każde z innej dziedziny
+  assert.ok(warmup.length >= CATEGORY_CHOICES, `tylko ${warmup.length} pytań na rozgrzewkę`);
+  assert.ok(
+    new Set(warmup.map((q) => q.category)).size >= CATEGORY_CHOICES,
+    'pytania rozgrzewkowe pochodzą ze zbyt małej liczby dziedzin',
+  );
+
+  // pozostałe rundy: na każdą po dwa hasła, więc z zapasem
+  const needed = (ROUND_COUNT - 1) * CATEGORY_CHOICES;
+  assert.ok(rest.length >= needed, `${rest.length} pytań na ${ROUND_COUNT - 1} rund, potrzeba ${needed}`);
+  assert.ok(
+    new Set(rest.map((q) => q.category)).size >= CATEGORY_CHOICES,
+    'za mało dziedzin poza rozgrzewką',
+  );
 });
 
 test('stałe gry trzymają się razem', () => {
-  assert.equal(DIFFICULTY_PLAN.length, ROUND_COUNT);
+  assert.equal(DOORS_PLAN.length, ROUND_COUNT);
   assert.equal(ROUND_SECONDS.length, ROUND_COUNT);
+  assert.equal(DOORS_PLAN.at(-1), FINAL_DOORS);
+  assert.ok(
+    DOORS_PLAN.every((d, i) => i === 0 || d <= DOORS_PLAN[i - 1]),
+    'liczba zapadni nie może rosnąć w trakcie gry',
+  );
   assert.equal(START_BALANCE % BUNDLE, 0);
   assert.ok(GRAB_SIZES.every((n) => Number.isInteger(n) && n > 0));
 });
@@ -90,43 +104,93 @@ test('stałe gry trzymają się razem', () => {
 /* Wybór kategorii                                                */
 /* -------------------------------------------------------------- */
 
-test('gra zaczyna się od wyboru kategorii, nie od pytania', () => {
+test('gra zaczyna się od wyboru hasła, nie od pytania', () => {
   const state = newGame();
   assert.equal(state.status, 'choosing');
   assert.equal(state.question, null);
-  assert.equal(offeredCategories(state).length, CATEGORY_CHOICES);
+  assert.equal(offeredQuestions(state).length, CATEGORY_CHOICES);
 });
 
-test('proponowane kategorie są różne i mają pokrycie w pytaniach', () => {
+test('oferta to dwa różne pytania, z różnych dziedzin', () => {
   for (const seed of ['a', 'b', 'c', 'd']) {
     const state = newGame(seed);
-    const offer = offeredCategories(state);
-    assert.equal(new Set(offer).size, offer.length, 'kategorie się powtarzają');
-    for (const category of offer) {
-      assert.ok(
-        availableQuestions(state).some((q) => q.category === category),
-        `${category}: brak pytań`,
-      );
+    const offer = offeredQuestions(state);
+    const ids = offer.map((o) => o.id);
+    assert.equal(new Set(ids).size, ids.length, 'to samo pytanie dwa razy');
+    const topics = ids.map((id) => QUESTIONS.find((q) => q.id === id).category);
+    assert.equal(new Set(topics).size, topics.length, 'oba hasła z tej samej dziedziny');
+    for (const { label } of offer) {
+      assert.ok(label && label.length > 0, 'hasło bez nazwy');
     }
   }
 });
 
-test('wybór kategorii daje pytanie właśnie z niej', () => {
-  const state = newGame('kategoria');
-  const [, second] = offeredCategories(state);
-  const started = chooseCategory(state, second);
+test('wskazane hasło odsłania dokładnie to pytanie, które się za nim kryło', () => {
+  const state = newGame('haslo');
+  const [, second] = offeredQuestions(state);
+  const started = chooseOffer(state, second.id);
   assert.equal(started.status, 'placing');
-  assert.equal(currentQuestion(started).category, second);
+  assert.equal(currentQuestion(started).id, second.id);
   assert.equal(started.bets.length, currentQuestion(started).answers.length);
   assert.equal(unplaced(started), START_BALANCE);
 });
 
-test('pytanie o właściwym poziomie trudności dla rundy', () => {
-  let state = newGame('trudnosc');
-  for (let round = 0; round < 3; round++) {
-    state = enterRound(state);
-    assert.equal(currentQuestion(state).difficulty, difficultyFor(round));
+test('hasło nie zdradza dziedziny — temat wychodzi dopiero z pytaniem', () => {
+  const withLabel = QUESTIONS.filter((q) => q.label);
+  for (const q of withLabel) {
+    assert.notEqual(
+      q.label.toLowerCase(),
+      q.category.toLowerCase(),
+      `${q.id}: hasło jest po prostu nazwą dziedziny`,
+    );
+  }
+});
+
+test('rozgrzewką jest tylko pierwsza runda', () => {
+  let state = newGame('rozgrzewka');
+  assert.equal(isWarmupRound(state), true);
+  state = enterRound(state);
+  assert.equal(currentQuestion(state).difficulty, WARMUP_DIFFICULTY);
+
+  for (let round = 1; round < 4; round++) {
     state = advance(resolve(placeRest(state, goodIndex(state))));
+    assert.equal(isWarmupRound(state), false);
+    state = enterRound(state);
+    assert.notEqual(
+      currentQuestion(state).difficulty,
+      WARMUP_DIFFICULTY,
+      `runda ${round + 1} dostała pytanie rozgrzewkowe`,
+    );
+  }
+});
+
+test('liczba zapadni maleje zgodnie z planem', () => {
+  let state = newGame('zapadnie');
+  for (let round = 0; round < ROUND_COUNT; round++) {
+    assert.equal(doorsInRound(state), DOORS_PLAN[round], `runda ${round + 1}`);
+    state = enterRound(state);
+    assert.equal(currentQuestion(state).answers.length, DOORS_PLAN[round]);
+    state = resolve(placeRest(state, goodIndex(state)));
+    if (round < ROUND_COUNT - 1) state = advance(state);
+  }
+});
+
+test('przy zwężaniu pytania zostaje najpoważniejszy kontrkandydat', () => {
+  const question = {
+    id: 'x',
+    answers: [
+      { text: 'dobra', correct: true },
+      { text: 'groźna', rival: true },
+      { text: 'odsiew A' },
+      { text: 'odsiew B' },
+    ],
+  };
+  for (const doors of [3, 2]) {
+    const trimmed = trimToDoors(question, makeRng('trim'), doors);
+    const texts = trimmed.answers.map((a) => a.text);
+    assert.equal(trimmed.answers.length, doors);
+    assert.ok(texts.includes('dobra'), 'zginęła poprawna odpowiedź');
+    assert.ok(texts.includes('groźna'), `przy ${doors} zapadniach zginął kontrkandydat`);
   }
 });
 
@@ -143,10 +207,10 @@ test('pytania się nie powtarzają w obrębie partii', () => {
   assert.deepEqual(state.usedIds, asked);
 });
 
-test('kategorii nie da się wybrać w złym momencie ani spoza oferty', () => {
-  const state = enterRound(newGame());
-  assert.throws(() => chooseCategory(state, 'Geografia'), /przed pytaniem/);
-  assert.throws(() => chooseCategory(newGame(), 'Nie ma takiej'), /Brak pytań/);
+test('hasła nie da się wybrać w złym momencie ani spoza oferty', () => {
+  const started = enterRound(newGame());
+  assert.throws(() => chooseOffer(started, started.question.id), /przed pytaniem/);
+  assert.throws(() => chooseOffer(newGame(), 'nie-ma-takiego'), /nie jest w tej rundzie/);
 });
 
 test('to samo ziarno daje ten sam przebieg, inne — inny', () => {

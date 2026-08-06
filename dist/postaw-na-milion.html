@@ -147,6 +147,7 @@ body {
 .mark {
   --mark: 1; /* mnożnik rozmiaru */
   position: relative;
+  pointer-events: none;
   flex: none;
   width: calc(210px * var(--mark));
   height: calc(96px * var(--mark));
@@ -263,9 +264,12 @@ body {
   letter-spacing: calc(-1px * var(--mark));
 }
 
-/* snop światła zza znaku — tylko na ekranie startowym */
+/* Snop światła zza znaku — tylko na ekranie startowym.
+   Jest znacznie większy niż sam znak i sięga aż pod pasek z przyciskami,
+   więc bez pointer-events: none przechwytywałby kliknięcia w „Zasady”. */
 .mark__beam {
   position: absolute;
+  pointer-events: none;
   left: 50%;
   top: 50%;
   width: calc(560px * var(--mark));
@@ -1648,22 +1652,60 @@ kbd {
   }
 }
 
+/* Reguła obejmuje wszystko, co się rusza — łatwiej dopisać wyjątek niż
+   pamiętać o dopisaniu każdej nowej animacji z osobna. Paczki nadal spadają,
+   bo to nie ozdobnik, tylko informacja o tym, co się właśnie stało. */
 @media (prefers-reduced-motion: reduce) {
-  .trap__flap,
-  .bundle {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 
   .lane__stack.is-falling .bundle {
-    animation-duration: 0.2s !important;
-    animation-delay: 0ms !important;
+    animation-duration: 0.35s !important;
   }
+}
 
-  .hud__cell--timer.is-urgent .ring__value,
-  .stage.is-revealed .lane.is-safe .lane__panel,
-  .lane.is-bumped .lane__amount {
-    animation: none !important;
-  }
+/* --------------------------------------------------------------------- */
+/* Lektor w oknie zasad                                                  */
+/* --------------------------------------------------------------------- */
+
+.rules__lead {
+  margin: 0 0 0.7rem;
+  color: var(--ink-dim);
+}
+
+.rules__voice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+.rules__voice select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.rules__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--gold);
+}
+
+.rules__hint:empty {
+  display: none;
 }
 </style>
   </head>
@@ -1690,6 +1732,9 @@ kbd {
 
         <div class="topbar__actions">
           <button id="btn-rules" class="btn btn--ghost" type="button">Zasady</button>
+          <button id="btn-voice" class="btn btn--ghost" type="button" aria-pressed="false" hidden>
+            🗣 Lektor
+          </button>
           <button id="btn-sound" class="btn btn--ghost" type="button" aria-pressed="true">🔊 Dźwięk</button>
         </div>
       </header>
@@ -1718,7 +1763,7 @@ kbd {
           </p>
 
           <ol class="steps">
-            <li><strong>Wybierz</strong> jedną z dwóch kategorii.</li>
+            <li><strong>Wybierz</strong> jedno z dwóch haseł — tematu nie zdradzają.</li>
             <li><strong>Rozłóż</strong> wszystkie paczki, ale jedno pole zostaw puste.</li>
             <li><strong>Zabierz</strong> to, co nie spadło — i graj dalej.</li>
           </ol>
@@ -1760,7 +1805,7 @@ kbd {
 
         <!-- Wybór kategorii — zajmuje miejsce pytania, zanim ono padnie -->
         <div id="choice" class="choice" hidden>
-          <p class="choice__eyebrow">Wybierz kategorię</p>
+          <p class="choice__eyebrow">Wybierz hasło — co się za nim kryje, okaże się za chwilę</p>
           <div id="choice-cards" class="choice__cards"></div>
         </div>
 
@@ -1786,14 +1831,18 @@ kbd {
         <!-- Taca i podsumowanie dzielą to samo miejsce, żeby scena nie skakała. -->
         <div class="bottombar">
           <div id="reveal" class="reveal" hidden>
-            <p id="reveal-headline" class="reveal__headline"></p>
+            <p id="reveal-headline" class="reveal__headline" role="status"></p>
             <p id="reveal-detail" class="reveal__detail"></p>
             <p id="reveal-note" class="reveal__note"></p>
             <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
           </div>
 
+          <!-- role="status" — czytnik ekranu ma zapowiadać każdą otwartą
+               zapadnię; bez tego cała ta scena jest dla niego niema. -->
           <div id="waiting" class="waiting" hidden>
-            <p id="waiting-text" class="waiting__text">Zapadnie otwierają się…</p>
+            <p id="waiting-text" class="waiting__text" role="status" aria-live="polite">
+              Zapadnie otwierają się…
+            </p>
             <button id="btn-skip" class="btn btn--ghost btn--sm" type="button">Pokaż wynik</button>
           </div>
 
@@ -1847,8 +1896,8 @@ kbd {
       <ul>
         <li>Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.</li>
         <li>
-          Przed każdym pytaniem dostajesz <strong>dwie kategorie</strong> do wyboru. Pytanie pada
-          dopiero po wyborze.
+          Przed każdym pytaniem dostajesz <strong>dwa hasła</strong> do wyboru. Nazwa niczego nie
+          zdradza — sens rozumie się dopiero po pytaniu. Wybierasz w ciemno.
         </li>
         <li>
           Pod każdą odpowiedzią jest <strong>zapadnia</strong>. Kładziesz na nich wszystkie paczki:
@@ -1871,6 +1920,17 @@ kbd {
         </li>
         <li>Kiedy w grze zostanie 0 zł — koniec.</li>
       </ul>
+      <h3>Lektor</h3>
+      <p class="rules__lead">
+        Gra może czytać hasła i pytania na głos. Korzysta z głosów zainstalowanych w systemie,
+        więc nic nie pobiera — ale i nie na każdym komputerze taki głos jest.
+      </p>
+      <label class="rules__voice">
+        <span>Głos</span>
+        <select id="voice-picker"></select>
+      </label>
+      <p id="voice-hint" class="rules__hint"></p>
+
       <h3>Skróty klawiszowe</h3>
       <ul class="rules__keys">
         <li><kbd>1</kbd>–<kbd>4</kbd> ile paczek brać naraz</li>
@@ -1918,7 +1978,8 @@ function writeSetting(key, value) {
  * Silnik gry "Postaw na milion".
  *
  * Przebieg rundy:
- *   'choosing' → gracz dostaje dwie kategorie do wyboru
+ *   'choosing' → gracz dostaje dwa hasła do wyboru; co się za nimi kryje,
+ *                 okazuje się dopiero po wskazaniu jednego z nich
  *   'placing'  → pada pytanie, gracz rozkłada paczki na zapadniach
  *   'revealed' → zapadnie otwierają się po kolei, pieniądze lecą w dół
  *
@@ -1936,17 +1997,38 @@ const ROUND_COUNT = 8;
 /** Ile paczek naraz można chwycić (przyciski w tacy). */
 const GRAB_SIZES = [1, 2, 4, 10];
 
-/** Czas na rozłożenie paczek w kolejnych rundach (w sekundach). */
-const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
+/**
+ * Czas na rozłożenie paczek (w sekundach). W teleturnieju jest to około
+ * minuty na pytanie — tyle zostawiamy i my, skracając tylko finał.
+ */
+const ROUND_SECONDS = [60, 60, 60, 60, 60, 60, 60, 45];
 
-/** Poziom trudności pytania w kolejnych rundach. */
-const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+/**
+ * Pytania nie są ustawione w drabinkę trudności — w teleturnieju napięcie
+ * bierze się z malejącej liczby zapadni i rosnącej stawki, a nie z coraz
+ * trudniejszych pytań. Wyjątkiem jest pierwsza runda: to rozgrzewka, więc
+ * losujemy do niej wyłącznie pytania oznaczone jako łatwe.
+ *
+ * `difficulty: 1` znaczy zatem „nadaje się na rozgrzewkę”, a nie „pierwszy
+ * szczebel z pięciu”. Reszta puli jest jednym workiem.
+ */
+const WARMUP_DIFFICULTY = 1;
 
-/** Ile kategorii dostaje gracz do wyboru przed pytaniem. */
+/** Ile haseł dostaje gracz do wyboru przed pytaniem. */
 const CATEGORY_CHOICES = 2;
 
-/** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
-const FINAL_DOORS = 2;
+/**
+ * Ile zapadni stoi w kolejnych rundach.
+ *
+ * Tak jest w teleturnieju: cztery pola do czwartego pytania, potem trzy,
+ * a w finale dwa. Pytanie robi się mechanicznie łatwiejsze dokładnie wtedy,
+ * gdy ryzyko rośnie — bo przy dwóch polach reguła pustej zapadni oznacza,
+ * że cała pula musi wylądować na jednej odpowiedzi.
+ */
+const DOORS_PLAN = [4, 4, 4, 4, 3, 3, 3, 2];
+
+/** Ile zapadni zostaje w finale. */
+const FINAL_DOORS = DOORS_PLAN[DOORS_PLAN.length - 1];
 
 /* ------------------------------------------------------------------ *
  * Losowość
@@ -2001,34 +2083,50 @@ function stageRng(state, stage) {
  * Dobór pytań
  * ------------------------------------------------------------------ */
 
-function difficultyFor(roundIndex, plan = DIFFICULTY_PLAN) {
-  return plan[Math.min(roundIndex, plan.length - 1)];
+/** Czy w tej rundzie gramy pytaniem rozgrzewkowym. */
+function isWarmupRound(state) {
+  return state.roundIndex === 0;
 }
 
 /**
- * Pytania dostępne w danej rundzie: o właściwej trudności i jeszcze niezadane.
- * Gdy pula na danym poziomie się wyczerpie, sięgamy po poziom najbliższy.
+ * Pytania dostępne w danej rundzie: jeszcze niezadane, a w pierwszej rundzie
+ * dodatkowo tylko te rozgrzewkowe. Gdyby którejś puli zabrakło, bierzemy
+ * cokolwiek zostało — brak pytania musiałby przerwać grę, a to gorsze niż
+ * zadanie łatwiejszego.
  */
 function availableQuestions(state) {
-  const wanted = difficultyFor(state.roundIndex, state.plan);
   const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
-  const levels = [...new Set(unused.map((q) => q.difficulty))].sort(
-    (a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b,
-  );
-  for (const level of levels) {
-    const batch = unused.filter((q) => q.difficulty === level);
-    if (batch.length) return batch;
-  }
-  return [];
+  const warmup = (q) => q.difficulty === WARMUP_DIFFICULTY;
+  const wanted = isWarmupRound(state) ? unused.filter(warmup) : unused.filter((q) => !warmup(q));
+  return wanted.length ? wanted : unused;
 }
 
 /**
- * Dwie kategorie do wyboru. Jeśli na danym poziomie została tylko jedna,
- * gracz dostaje ją samą — wybór bez alternatywy nadal jest poprawną rundą.
+ * Dwa hasła do wyboru.
+ *
+ * W teleturnieju kategoria nie zdradza tematu — nosi przewrotną nazwę, której
+ * sens rozumie się dopiero po pytaniu. Dlatego wybór dotyczy konkretnych pytań,
+ * a nie dziedzin: gracz widzi wyłącznie `label`, a `category` (prawdziwy temat)
+ * wychodzi na jaw dopiero przy rozwiązaniu.
+ *
+ * Staramy się dobrać hasła z różnych dziedzin, żeby wybór nie sprowadzał się
+ * do dwóch pytań o to samo.
  */
-function offeredCategories(state) {
-  const categories = [...new Set(availableQuestions(state).map((q) => q.category))];
-  return shuffle(categories, stageRng(state, 'kategorie')).slice(0, CATEGORY_CHOICES);
+function offeredQuestions(state) {
+  const pool = shuffle(availableQuestions(state), stageRng(state, 'oferta'));
+  const picked = [];
+  for (const question of pool) {
+    if (picked.length >= CATEGORY_CHOICES) break;
+    if (picked.some((q) => q.category === question.category)) continue;
+    picked.push(question);
+  }
+  // gdy w puli zostały już tylko pytania z jednej dziedziny, bierzemy je mimo to
+  for (const question of pool) {
+    if (picked.length >= CATEGORY_CHOICES) break;
+    if (!picked.includes(question)) picked.push(question);
+  }
+  // `category` jako zapasowe hasło — pytanie bez wymyślonej nazwy nadal działa
+  return picked.map((q) => ({ id: q.id, label: q.label ?? q.category }));
 }
 
 /** Kopiuje pytanie z potasowanymi odpowiedziami. */
@@ -2040,17 +2138,24 @@ function prepareQuestion(question, rng) {
 }
 
 /**
- * Finał: zostaje poprawna odpowiedź i jeden losowy dystraktor.
- * Kolejność znowu losowa, żeby poprawna nie lądowała zawsze po tej samej stronie.
+ * Ogranicza pytanie do liczby zapadni w danej rundzie.
+ *
+ * Zostaje poprawna odpowiedź i — koniecznie — ta oznaczona jako `rival`, czyli
+ * najpoważniejszy kontrkandydat. Gdyby wypadała losowo, pytanie robiłoby się
+ * banalne dokładnie wtedy, gdy na placu boju zostałby oczywisty odsiew.
+ * Resztę miejsc, jeśli jakieś zostały, dobieramy losowo.
  */
-function trimToFinal(question, rng, doors = FINAL_DOORS) {
+function trimToDoors(question, rng, doors) {
+  if (doors >= question.answers.length) return question;
   const correct = question.answers.filter((a) => a.correct);
-  const wrong = shuffle(
-    question.answers.filter((a) => !a.correct),
+  const wrong = question.answers.filter((a) => !a.correct);
+  const rivals = wrong.filter((a) => a.rival);
+  const rest = shuffle(
+    wrong.filter((a) => !a.rival),
     rng,
   );
-  const kept = [...correct, ...wrong].slice(0, Math.max(doors, correct.length + 1));
-  return { ...question, answers: shuffle(kept, rng), isFinal: true };
+  const kept = [...correct, ...rivals, ...rest].slice(0, Math.max(doors, correct.length + 1));
+  return { ...question, answers: shuffle(kept, rng) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -2061,11 +2166,11 @@ function createGame({
   questions,
   seed = 'domyslne',
   startBalance = START_BALANCE,
-  plan = DIFFICULTY_PLAN,
+  doorsPlan = DOORS_PLAN,
 } = {}) {
   return {
     seed: String(seed),
-    plan,
+    doorsPlan,
     pool: questions,
     startBalance,
     balance: startBalance,
@@ -2083,27 +2188,33 @@ function createGame({
 
 /** Ile zapadni stoi w tej rundzie — jeszcze zanim padnie pytanie. */
 function doorsInRound(state) {
-  return isFinalRound(state) ? FINAL_DOORS : 4;
+  const plan = state.doorsPlan ?? DOORS_PLAN;
+  return plan[Math.min(state.roundIndex, plan.length - 1)];
 }
 
 function isFinalRound(state) {
-  return state.roundIndex >= state.plan.length - 1;
+  const plan = state.doorsPlan ?? DOORS_PLAN;
+  return state.roundIndex >= plan.length - 1;
 }
 
 /**
- * Gracz wybiera kategorię — dopiero teraz losuje się pytanie.
+ * Gracz wskazuje hasło — dopiero teraz odsłania się pytanie, które się za nim kryło.
  */
-function chooseCategory(state, category) {
+function chooseOffer(state, id) {
   if (state.status !== 'choosing') {
-    throw new Error('Kategorię wybiera się przed pytaniem.');
+    throw new Error('Hasło wybiera się przed pytaniem.');
   }
-  const candidates = availableQuestions(state).filter((q) => q.category === category);
-  if (!candidates.length) throw new Error(`Brak pytań w kategorii ${category}.`);
+  if (!offeredQuestions(state).some((o) => o.id === id)) {
+    throw new Error(`Hasło ${id} nie jest w tej rundzie do wyboru.`);
+  }
+  const picked = state.pool.find((q) => q.id === id);
 
-  const rng = stageRng(state, `pytanie:${category}`);
-  const picked = shuffle(candidates, rng)[0];
-  let question = prepareQuestion(picked, rng);
-  if (isFinalRound(state)) question = trimToFinal(question, rng);
+  const rng = stageRng(state, `pytanie:${id}`);
+  const doors = doorsInRound(state);
+  const question = {
+    ...trimToDoors(prepareQuestion(picked, rng), rng, doors),
+    isFinal: isFinalRound(state),
+  };
 
   return {
     ...state,
@@ -2315,606 +2426,1453 @@ function isOver(state) {
  *
  * Format jednego pytania:
  *   {
- *     id:         unikalny identyfikator (string),
- *     category:   kategoria — gra proponuje przed rundą dwie do wyboru,
- *     difficulty: 1-5 (1 = najłatwiejsze),
+ *     id:         unikalny identyfikator,
+ *     label:      HASŁO — nazwa, którą gracz widzi przy wyborze. Nigdy nie jest
+ *                 nazwą dziedziny; sens ma się rozjaśnić dopiero po pytaniu,
+ *     category:   prawdziwa dziedzina, ujawniana razem z rozwiązaniem,
+ *     difficulty: 1 = nadaje się na rozgrzewkę (pierwsza runda losuje tylko
+ *                 takie). Wyższe wartości są tylko wskazówką dla autora —
+ *                 gra traktuje całą resztę puli jednakowo,
  *     text:       treść pytania,
- *     answers:    dokładnie 4 odpowiedzi (tyle jest zapadni), jedna poprawna,
- *     note:       krótkie wyjaśnienie pokazywane po otwarciu zapadni
+ *     answers:    cztery odpowiedzi; jedna `correct`, jedna `rival`,
+ *     note:       jedno zdanie wyjaśnienia po otwarciu zapadni
  *   }
  *
- * Dwie zasady przy układaniu pytań:
+ * Trzy zasady, na których stoi ta baza:
  *
- * 1. Wszystkie cztery odpowiedzi mają brzmieć sensownie. Pytanie jest dobre
- *    wtedy, gdy nie da się odsiać trzech błędnych jednym spojrzeniem.
- * 2. Najlepsze pytanie nie sprawdza pamięci, tylko odruch. Pyta o rzecz
- *    pozornie oczywistą, przy której pierwsza myśl prowadzi w bok:
- *    doba na Wenus jest dłuższa niż rok, luty 2100 ma 28 dni, a najbliższym
- *    krewnym hipopotama jest wieloryb.
+ * 1. `rival` to najpoważniejszy kontrkandydat — odpowiedź, w którą wpada
+ *    dobrze poinformowany gracz. W rundach z trzema i dwiema zapadniami gra
+ *    odrzuca odpowiedzi, ale tę zostawia zawsze. Bez niej finał robiłby się
+ *    banalny, gdyby na placu boju został przypadkiem oczywisty odsiew.
  *
- * Ponieważ gracz wybiera kategorię, każdy poziom trudności musi mieć pytania
- * w co najmniej kilku kategoriach — pilnuje tego test w tests/engine.test.js.
+ * 2. Pytanie ma wciągać w DWIE odpowiedzi, nie w jedną. Układ jest zawsze
+ *    ten sam: jedna poprawna, jedna prawie poprawna i dwa odsiewy. Dopiero
+ *    wtedy dzielenie pieniędzy między zapadnie ma sens — a o to w tej grze chodzi.
+ *
+ * 3. Żadnych faktów z terminem ważności. Aktualni rekordziści, urzędujący
+ *    politycy i bieżące rankingi są zakazane: w teleturnieju najgłośniejszą
+ *    wpadką było pytanie o najdłuższe metro poza Chinami, gdzie w 2020 roku
+ *    poprawny był Londyn, a w 2023 — już Moskwa.
+ *
+ * `spoken` przy odpowiedzi albo pytaniu podaje wersję do przeczytania na głos
+ * (lektor czyta „tysiąc czterysta dziesięć”, gracz widzi „1410”).
  */
 
 const QUESTIONS = [
-  /* ============================ poziom 1 ============================ */
+  /* ===================== rozgrzewka (runda pierwsza) ===================== */
   {
-    id: 'geo-najdalej-wschod',
+    id: 'geo-sasiedzi',
+    label: 'Dwa bratanki',
     category: 'Geografia',
     difficulty: 1,
-    text: 'Które z tych miast leży najdalej na wschód?',
+    text: 'Które z tych państw NIE graniczy z Polską?',
     answers: [
-      { text: 'Helsinki', correct: true },
-      { text: 'Warszawa' },
-      { text: 'Wiedeń' },
-      { text: 'Praga' },
+      { text: 'Węgry', correct: true },
+      { text: 'Litwa', rival: true },
+      { text: 'Słowacja' },
+      { text: 'Czechy' },
     ],
-    note: 'Helsinki leżą na 25°E, Warszawa na 21°E. Wiedeń i Praga są jeszcze dalej na zachód niż Warszawa.',
+    note: 'Mimo przysłowia o dwóch bratankach wspólnej granicy z Węgrami nie ma — rozdziela nas Słowacja.',
   },
   {
-    id: 'hist-123-lata',
-    category: 'Historia',
-    difficulty: 1,
-    text: 'Ile lat Polski nie było na mapie — od trzeciego rozbioru do odzyskania niepodległości?',
-    answers: [{ text: '123', correct: true }, { text: '99' }, { text: '111' }, { text: '146' }],
-    note: 'Od 1795 do 1918 roku. Liczba 123 weszła do języka jako symbol zaborów.',
-  },
-  {
-    id: 'jez-na-pewno',
-    category: 'Język polski',
-    difficulty: 1,
-    text: 'Który zapis jest poprawny?',
-    answers: [
-      { text: 'na pewno', correct: true },
-      { text: 'napewno' },
-      { text: 'na-pewno' },
-      { text: 'na pewno się pisze łącznie' },
-    ],
-    note: 'Zawsze rozdzielnie. „Napewno” to jeden z najczęstszych błędów w polszczyźnie.',
-  },
-  {
-    id: 'nauka-pierze-olow',
-    category: 'Nauka',
-    difficulty: 1,
-    text: 'Co waży więcej: kilogram pierza czy kilogram ołowiu?',
-    answers: [
-      { text: 'Ważą tyle samo', correct: true },
-      { text: 'Ołów' },
-      { text: 'Pierze' },
-      { text: 'Zależy od objętości' },
-    ],
-    note: 'Kilogram to kilogram. Różni się objętość, nie masa — i na tym właśnie żeruje to pytanie.',
-  },
-  {
-    id: 'przyr-nogi-pajaka',
-    category: 'Przyroda',
-    difficulty: 1,
-    text: 'Ile PAR nóg ma pająk?',
-    answers: [{ text: '4', correct: true }, { text: '3' }, { text: '6' }, { text: '8' }],
-    note: 'Osiem nóg, czyli cztery pary. Trzy pary ma owad — i dlatego pająk owadem nie jest.',
-  },
-  {
-    id: 'sport-dogrywka',
-    category: 'Sport',
-    difficulty: 1,
-    text: 'Ile minut trwa dogrywka w meczu piłki nożnej?',
-    answers: [{ text: '30', correct: true }, { text: '20' }, { text: '15' }, { text: '45' }],
-    note: 'Dwie połowy po 15 minut, bez przerwy na zmianę stron dłuższej niż chwila.',
-  },
-  {
-    id: 'muz-najwiecej-strun',
-    category: 'Muzyka',
-    difficulty: 1,
-    text: 'Który z tych instrumentów ma najwięcej strun?',
-    answers: [
-      { text: 'Fortepian', correct: true },
-      { text: 'Harfa koncertowa' },
-      { text: 'Gitara dwunastostrunowa' },
-      { text: 'Kontrabas' },
-    ],
-    note: 'Fortepian ma około 230 strun ukrytych pod pokrywą. Harfa koncertowa — 47.',
-  },
-  {
-    id: 'kult-wiedzmin',
-    category: 'Kultura',
-    difficulty: 1,
-    text: 'Jak nazywa się główny bohater sagi „Wiedźmin”?',
-    answers: [
-      { text: 'Geralt z Rivii', correct: true },
-      { text: 'Jaskier z Oxenfurtu' },
-      { text: 'Regis z Dillingen' },
-      { text: 'Eskel z Kaer Morhen' },
-    ],
-    note: 'Pozostali też występują u Sapkowskiego — ale wiedźminem z tytułu jest Geralt.',
-  },
-  {
-    id: 'licz-pol-tuzina',
-    category: 'Liczby',
-    difficulty: 1,
-    text: 'Ile sztuk to pół tuzina?',
-    answers: [{ text: '6', correct: true }, { text: '5' }, { text: '10' }, { text: '12' }],
-    note: 'Tuzin to 12, więc pół tuzina to 6. Kopa natomiast liczy 60.',
-  },
-  {
-    id: 'kuch-pomidor',
-    category: 'Kuchnia',
-    difficulty: 1,
-    text: 'Które z tych warzyw jest z botanicznego punktu widzenia owocem?',
-    answers: [
-      { text: 'Pomidor', correct: true },
-      { text: 'Marchew' },
-      { text: 'Burak' },
-      { text: 'Ziemniak' },
-    ],
-    note: 'Pomidor to jagoda — powstaje z zalążni kwiatu. Pozostałe trzy to korzenie i bulwy.',
-  },
-
-  /* ============================ poziom 2 ============================ */
-  {
-    id: 'geo-dunaj',
+    id: 'geo-canberra',
+    label: 'Stolice świata',
     category: 'Geografia',
-    difficulty: 2,
-    text: 'Przez które z tych państw NIE przepływa Dunaj?',
+    difficulty: 1,
+    text: 'Stolicą Australii jest:',
     answers: [
-      { text: 'Czechy', correct: true },
-      { text: 'Austria' },
-      { text: 'Węgry' },
-      { text: 'Serbia' },
+      { text: 'Canberra', correct: true },
+      { text: 'Sydney', rival: true },
+      { text: 'Melbourne' },
+      { text: 'Brisbane' },
     ],
-    note: 'Dunaj mija Czechy bokiem — płynie przez dziesięć państw, ale nie przez to.',
+    note: 'Canberrę zbudowano od zera właśnie po to, by zakończyć spór Sydney i Melbourne o miano stolicy.',
   },
   {
-    id: 'hist-co-najwczesniej',
-    category: 'Historia',
-    difficulty: 2,
-    text: 'Który z tych wynalazków powstał najwcześniej?',
-    answers: [
-      { text: 'Maszyna do pisania', correct: true },
-      { text: 'Telefon' },
-      { text: 'Żarówka' },
-      { text: 'Samochód' },
-    ],
-    note: 'Maszyna do pisania 1868, telefon 1876, żarówka 1879, samochód 1886. Kolejność bywa zaskoczeniem.',
-  },
-  {
-    id: 'jez-musztarda',
-    category: 'Język polski',
-    difficulty: 2,
-    text: 'Co znaczy powiedzenie „musztarda po obiedzie”?',
-    answers: [
-      { text: 'Coś, co przychodzi stanowczo za późno', correct: true },
-      { text: 'Dodatek, bez którego można się obejść' },
-      { text: 'Przesada w drobnej sprawie' },
-      { text: 'Niespodziewany zwrot na koniec' },
-    ],
-    note: 'Musztarda podana po posiłku nie ma już czego przyprawić.',
-  },
-  {
-    id: 'nauka-kostka',
-    category: 'Nauka',
-    difficulty: 2,
-    text: 'Ile wynosi suma oczek na dwóch przeciwległych ścianach kostki do gry?',
-    answers: [{ text: '7', correct: true }, { text: '6' }, { text: '8' }, { text: '9' }],
-    note: 'Zawsze 7: naprzeciw jedynki leży szóstka, naprzeciw dwójki piątka, naprzeciw trójki czwórka.',
-  },
-  {
-    id: 'przyr-hipopotam',
-    category: 'Przyroda',
-    difficulty: 2,
-    text: 'Które z tych zwierząt jest najbliżej spokrewnione z hipopotamem?',
-    answers: [
-      { text: 'Wieloryb', correct: true },
-      { text: 'Świnia' },
-      { text: 'Nosorożec' },
-      { text: 'Słoń' },
-    ],
-    note: 'Walenie i hipopotamy mają wspólnego przodka. Podobieństwo do nosorożca jest wyłącznie z wyglądu.',
-  },
-  {
-    id: 'kuch-jaglana',
-    category: 'Kuchnia',
-    difficulty: 2,
-    text: 'Z jakiego zboża produkuje się kaszę jaglaną?',
-    answers: [
-      { text: 'Z prosa', correct: true },
-      { text: 'Z jęczmienia' },
-      { text: 'Z owsa' },
-      { text: 'Z gryki' },
-    ],
-    note: 'Jaglana to obłuskane proso. Z jęczmienia jest pęczak i perłowa, z gryki — gryczana.',
-  },
-  {
-    id: 'muz-hymn-ue',
-    category: 'Muzyka',
-    difficulty: 2,
-    text: 'Hymn Unii Europejskiej to fragment…',
-    answers: [
-      { text: 'IX Symfonii Beethovena', correct: true },
-      { text: 'V Symfonii Beethovena' },
-      { text: '„Wodnej muzyki” Händla' },
-      { text: '„Czterech pór roku” Vivaldiego' },
-    ],
-    note: '„Oda do radości” z finału IX Symfonii — przyjęta bez słów, żeby żaden język nie był uprzywilejowany.',
-  },
-  {
-    id: 'sport-400m',
-    category: 'Sport',
-    difficulty: 2,
-    text: 'Ile okrążeń stadionowej bieżni liczy bieg na 400 metrów?',
-    answers: [{ text: '1', correct: true }, { text: '2' }, { text: '4' }, { text: 'Pół' }],
-    note: 'Standardowa bieżnia ma dokładnie 400 metrów, więc to jedno okrążenie.',
-  },
-  {
-    id: 'licz-miliard',
-    category: 'Liczby',
-    difficulty: 2,
-    text: 'Ile zer ma miliard zapisany cyframi?',
-    answers: [{ text: '9', correct: true }, { text: '6' }, { text: '12' }, { text: '8' }],
-    note: '1 000 000 000 — dziewięć zer. Sześć ma milion, dwanaście bilion.',
-  },
-  {
-    id: 'lit-saba',
-    category: 'Literatura',
-    difficulty: 2,
-    text: 'Jak nazywał się pies ze „W pustyni i w puszczy”?',
-    answers: [{ text: 'Saba', correct: true }, { text: 'Kali' }, { text: 'Mea' }, { text: 'Nel' }],
-    note: 'Saba to dog. Kali i Mea to towarzysze podróży, a Nel — mała bohaterka powieści.',
-  },
-
-  /* ============================ poziom 3 ============================ */
-  {
-    id: 'geo-rownik',
+    id: 'geo-srodziemne',
+    label: 'Nad wodą',
     category: 'Geografia',
-    difficulty: 3,
-    text: 'Które z tych miast leży najbliżej równika?',
+    difficulty: 1,
+    text: 'Które z tych państw NIE ma dostępu do Morza Śródziemnego?',
     answers: [
-      { text: 'Kair', correct: true },
-      { text: 'Tokio' },
-      { text: 'Nowy Jork' },
-      { text: 'Rzym' },
+      { text: 'Portugalia', correct: true },
+      { text: 'Chorwacja', rival: true },
+      { text: 'Hiszpania' },
+      { text: 'Grecja' },
     ],
-    note: 'Kair leży na 30°N, Tokio na 36°N, Nowy Jork na 41°N, Rzym na 42°N.',
+    note: 'Cała portugalska linia brzegowa wychodzi na Ocean Atlantycki — Morze Śródziemne zaczyna się dopiero za Gibraltarem.',
   },
   {
-    id: 'hist-najdluzej-krol',
+    id: 'hist-grunwald',
+    label: 'Dwa miecze',
     category: 'Historia',
-    difficulty: 3,
-    text: 'Który z tych władców panował w Polsce najdłużej?',
+    difficulty: 1,
+    text: 'Bitwa pod Grunwaldem została stoczona w roku:',
     answers: [
-      { text: 'Władysław Jagiełło', correct: true },
-      { text: 'Zygmunt III Waza' },
-      { text: 'Zygmunt Stary' },
+      { text: '1410', spoken: 'tysiąc czterysta dziesięć', correct: true },
+      { text: '1409', spoken: 'tysiąc czterysta dziewięć', rival: true },
+      { text: '1385', spoken: 'tysiąc trzysta osiemdziesiąt pięć' },
+      { text: '1466', spoken: 'tysiąc czterysta sześćdziesiąt sześć' },
+    ],
+    note: 'Rok wcześniej wybuchła dopiero wielka wojna z zakonem; pozostałe daty to unia w Krewie i drugi pokój toruński.',
+  },
+  {
+    id: 'hist-pierwszy-krol',
+    label: 'Piastowie',
+    category: 'Historia',
+    difficulty: 1,
+    text: 'Pierwszym koronowanym królem Polski był:',
+    answers: [
+      { text: 'Bolesław Chrobry', correct: true },
+      { text: 'Mieszko I', spoken: 'Mieszko pierwszy', rival: true },
+      { text: 'Władysław Łokietek' },
       { text: 'Kazimierz Wielki' },
     ],
-    note: 'Jagiełło 48 lat, Zygmunt III Waza 45, Zygmunt Stary 42, Kazimierz Wielki 37.',
+    note: 'Mieszko I był księciem i nigdy nie przyjął korony — zrobił to jego syn tuż przed śmiercią, w 1025 roku.',
   },
   {
-    id: 'jez-rak',
+    id: 'pol-rekawica',
+    label: 'Powiedzonka',
     category: 'Język polski',
-    difficulty: 3,
-    text: 'Jak brzmi dopełniacz liczby mnogiej słowa „ręka”?',
-    answers: [{ text: 'rąk', correct: true }, { text: 'ręk' }, { text: 'ręków' }, { text: 'rąków' }],
-    note: 'Nie ma rąk. Wymiana „ę” na „ą” jest tu regularna, choć brzmi jak wyjątek.',
+    difficulty: 1,
+    text: 'Co znaczy zwrot „rzucić komuś rękawicę”?',
+    answers: [
+      { text: 'Wyzwać go do walki', correct: true },
+      { text: 'Przyznać się przed nim do porażki', rival: true },
+      { text: 'Pogodzić się z nim' },
+      { text: 'Poprosić go o pomoc' },
+    ],
+    note: 'Poddanie się to „rzucić ręcznik”, a rękawicę rzucali sobie rycerze na znak wyzwania na pojedynek.',
   },
   {
-    id: 'nauka-wenus',
+    id: 'pol-enigmatyczny',
+    label: 'Obce słowa',
+    category: 'Język polski',
+    difficulty: 1,
+    text: 'Słowo „enigmatyczny” znaczy tyle co:',
+    answers: [
+      { text: 'tajemniczy', correct: true },
+      { text: 'energiczny', rival: true },
+      { text: 'kłamliwy' },
+      { text: 'ogromny' },
+    ],
+    note: 'Podobieństwo brzmienia do „energiczny” to pułapka — słowo pochodzi od greckiego „ainigma”, czyli zagadka.',
+  },
+  {
+    id: 'pol-filatelista',
+    label: 'Na kopercie',
+    category: 'Język polski',
+    difficulty: 1,
+    text: 'Czym zajmuje się filatelista?',
+    answers: [
+      { text: 'Zbiera znaczki pocztowe', correct: true },
+      { text: 'Zbiera pocztówki', rival: true },
+      { text: 'Zbiera monety' },
+      { text: 'Zbiera stare mapy' },
+    ],
+    note: 'Monety zbiera numizmatyk, a pocztówki — deltiolog; filatelistyka to znaczki i wszystko, co pocztowe.',
+  },
+  {
+    id: 'nauka-trojkat',
+    label: 'Figury',
     category: 'Nauka',
-    difficulty: 3,
-    text: 'Jak ma się doba na Wenus do jej roku?',
+    difficulty: 1,
+    text: 'Jak nazywa się trójkąt, którego wszystkie boki mają różną długość?',
     answers: [
-      { text: 'Doba jest dłuższa niż rok', correct: true },
-      { text: 'Rok jest dwa razy dłuższy' },
-      { text: 'Są prawie równe' },
-      { text: 'Doba trwa niecałe 24 godziny' },
+      { text: 'różnoboczny', correct: true },
+      { text: 'równoramienny', rival: true },
+      { text: 'równoboczny' },
+      { text: 'prostokątny' },
     ],
-    note: 'Wenus obraca się wokół osi 243 dni ziemskich, a Słońce okrąża w 225. Dzień trwa tam dłużej niż rok.',
+    note: 'Nazwy „równoramienny” i „równoboczny” zapadają w pamięć ze szkoły mocniej niż ta czwarta, najzwyklejsza możliwość.',
   },
   {
-    id: 'przyr-banan',
+    id: 'nauka-azot',
+    label: 'Pełną piersią',
+    category: 'Nauka',
+    difficulty: 1,
+    text: 'Który gaz stanowi największą część powietrza atmosferycznego?',
+    answers: [
+      { text: 'azot', correct: true },
+      { text: 'tlen', rival: true },
+      { text: 'dwutlenek węgla' },
+      { text: 'wodór' },
+    ],
+    note: 'Azotu jest w powietrzu około 78 procent, a tlenu — o którym myślimy najpierw — tylko 21.',
+  },
+  {
+    id: 'przyr-rekin',
+    label: 'Mleko matki',
     category: 'Przyroda',
-    difficulty: 3,
-    text: 'Na czym rosną banany?',
+    difficulty: 1,
+    text: 'Które z tych zwierząt NIE jest ssakiem?',
     answers: [
-      { text: 'Na roślinie zielnej — bananowiec nie jest drzewem', correct: true },
-      { text: 'Na drzewie z twardym pniem' },
-      { text: 'Na krzewie' },
-      { text: 'Na pnączu' },
+      { text: 'rekin', correct: true },
+      { text: 'delfin', rival: true },
+      { text: 'nietoperz' },
+      { text: 'wieloryb' },
     ],
-    note: 'To, co wygląda na pień, jest zwiniętymi liśćmi. Botanicznie bananowiec to bylina, a banan — jagoda.',
+    note: 'Rekin jest rybą i oddycha skrzelami, podczas gdy delfin i wieloryb wypływają po powietrze, a nietoperz karmi młode mlekiem.',
   },
   {
-    id: 'kuch-al-dente',
-    category: 'Kuchnia',
-    difficulty: 3,
-    text: 'Co oznacza „al dente”?',
+    id: 'przyr-modrzew',
+    label: 'Drzewa',
+    category: 'Przyroda',
+    difficulty: 1,
+    text: 'Które z tych drzew iglastych zrzuca igły na zimę?',
     answers: [
-      { text: 'Makaron stawia jeszcze lekki opór przy gryzieniu', correct: true },
-      { text: 'Makaron gotowany w osolonej wodzie' },
-      { text: 'Makaron podany od razu po odcedzeniu' },
-      { text: 'Makaron przelany zimną wodą' },
+      { text: 'modrzew', correct: true },
+      { text: 'sosna', rival: true },
+      { text: 'świerk' },
+      { text: 'jodła' },
     ],
-    note: 'Dosłownie „na ząb”. Środek nitki jest jeszcze odrobinę twardy — i o to chodzi.',
+    note: 'Modrzew to jedyne rodzime drzewo iglaste, które jesienią żółknie i całkiem się ogołaca.',
   },
   {
-    id: 'muz-pianino',
+    id: 'muz-gitara',
+    label: 'Instrumenty',
     category: 'Muzyka',
-    difficulty: 3,
-    text: 'Ile klawiszy ma standardowe pianino?',
-    answers: [{ text: '88', correct: true }, { text: '76' }, { text: '61' }, { text: '96' }],
-    note: '52 białe i 36 czarnych. 61 i 76 to typowe rozmiary keyboardów.',
-  },
-  {
-    id: 'sport-golf',
-    category: 'Sport',
-    difficulty: 3,
-    text: 'Ile dołków ma standardowe pole golfowe?',
-    answers: [{ text: '18', correct: true }, { text: '12' }, { text: '16' }, { text: '24' }],
-    note: 'Osiemnaście — układ przyjęty w XVIII wieku w szkockim St Andrews.',
-  },
-  {
-    id: 'lit-nobelisci',
-    category: 'Literatura',
-    difficulty: 3,
-    text: 'Ilu Polaków otrzymało do tej pory literacką Nagrodę Nobla?',
-    answers: [{ text: '5', correct: true }, { text: '3' }, { text: '4' }, { text: '6' }],
-    note: 'Sienkiewicz, Reymont, Miłosz, Szymborska i Tokarczuk.',
-  },
-  {
-    id: 'licz-doba',
-    category: 'Liczby',
-    difficulty: 3,
-    text: 'Ile minut ma doba?',
+    difficulty: 1,
+    text: 'Ile strun ma klasyczna gitara?',
     answers: [
-      { text: '1440', correct: true },
-      { text: '1240' },
-      { text: '1200' },
-      { text: '1660' },
+      { text: '6', spoken: 'sześć', correct: true },
+      { text: '4', spoken: 'cztery', rival: true },
+      { text: '7', spoken: 'siedem' },
+      { text: '12', spoken: 'dwanaście' },
     ],
-    note: '24 razy 60. Sekund w dobie jest już 86 400.',
+    note: 'Cztery struny ma gitara basowa, a dwanaście — odmiana dwunastostrunowa, w której struny biegną parami.',
+  },
+  {
+    id: 'muz-vivaldi',
+    label: 'Kompozytorzy',
+    category: 'Muzyka',
+    difficulty: 1,
+    text: 'Cykl koncertów skrzypcowych „Cztery pory roku” skomponował:',
+    answers: [
+      { text: 'Antonio Vivaldi', correct: true },
+      { text: 'Johann Sebastian Bach', rival: true },
+      { text: 'Wolfgang Amadeusz Mozart' },
+      { text: 'Ludwig van Beethoven' },
+    ],
+    note: 'Vivaldi napisał ten cykl w epoce baroku, mniej więcej wtedy, gdy tworzył Bach — stąd najczęstsza pomyłka.',
+  },
+  {
+    id: 'kult-gronostaj',
+    label: 'Muzea',
+    category: 'Kultura',
+    difficulty: 1,
+    text: 'W którym polskim mieście na stałe znajduje się „Dama z gronostajem” Leonarda da Vinci?',
+    answers: [
+      { text: 'Kraków', correct: true },
+      { text: 'Warszawa', rival: true },
+      { text: 'Wrocław' },
+      { text: 'Poznań' },
+    ],
+    note: 'Obraz należy do kolekcji Czartoryskich i wisi w Krakowie, choć odruchowo szuka się najcenniejszych dzieł w stolicy.',
+  },
+  {
+    id: 'film-pianista',
+    label: 'Reżyserzy',
+    category: 'Film',
+    difficulty: 1,
+    text: 'Nagrodzony Oscarem film „Pianista” wyreżyserował:',
+    answers: [
+      { text: 'Roman Polański', correct: true },
+      { text: 'Andrzej Wajda', rival: true },
+      { text: 'Krzysztof Kieślowski' },
+      { text: 'Jerzy Hoffman' },
+    ],
+    note: 'Polański, sam ocalały z krakowskiego getta, odebrał za „Pianistę” Oscara za reżyserię w 2003 roku.',
+  },
+  {
+    id: 'film-kiler',
+    label: 'Nie ten człowiek',
+    category: 'Film',
+    difficulty: 1,
+    text: 'Kto zagrał tytułową rolę w komedii Juliusza Machulskiego „Kiler”?',
+    answers: [
+      { text: 'Cezary Pazura', correct: true },
+      { text: 'Jerzy Stuhr', rival: true },
+      { text: 'Marek Kondrat' },
+      { text: 'Bogusław Linda' },
+    ],
+    note: 'Jerzy Stuhr rzeczywiście gra w tym filmie — ale Siarę, nie taksówkarza wziętego za płatnego mordercę.',
+  },
+  {
+    id: 'lit-muszkieterowie',
+    label: 'Jeden za wszystkich',
+    category: 'Literatura',
+    difficulty: 1,
+    text: 'Który z bohaterów Aleksandra Dumasa NIE należał do tytułowej trójki „Trzech muszkieterów”?',
+    answers: [
+      { text: "d'Artagnan", spoken: 'Dartanian', correct: true },
+      { text: 'Aramis', rival: true },
+      { text: 'Atos' },
+      { text: 'Portos' },
+    ],
+    note: 'Główny bohater dopiero na kartach powieści dołącza do muszkieterów, więc tytułową trójkę tworzą pozostali trzej.',
+  },
+  {
+    id: 'lit-inwokacja',
+    label: 'Wieszczowie',
+    category: 'Literatura',
+    difficulty: 1,
+    text: 'Słowa „Litwo, Ojczyzno moja!” rozpoczynają utwór, którego autorem jest:',
+    answers: [
+      { text: 'Adam Mickiewicz', correct: true },
+      { text: 'Juliusz Słowacki', rival: true },
+      { text: 'Cyprian Kamil Norwid' },
+      { text: 'Jan Kochanowski' },
+    ],
+    note: 'To inwokacja „Pana Tadeusza”; Słowacki, również wieszcz i również z Kresów, napisał „Balladynę” i „Kordiana”.',
+  },
+  {
+    id: 'sport-siatkowka-boisko',
+    label: 'Gry zespołowe',
+    category: 'Sport',
+    difficulty: 1,
+    text: 'Ilu zawodników jednej drużyny przebywa na boisku podczas meczu siatkówki?',
+    answers: [
+      { text: '6', spoken: 'sześciu', correct: true },
+      { text: '5', spoken: 'pięciu', rival: true },
+      { text: '7', spoken: 'siedmiu' },
+      { text: '11', spoken: 'jedenastu' },
+    ],
+    note: 'Pięciu gra w koszykówce, siedmiu w piłce ręcznej, a w siatkówce sześciu ustawia się w dwóch liniach po trzech.',
+  },
+  {
+    id: 'sport-wimbledon',
+    label: 'Zielono mi',
+    category: 'Sport',
+    difficulty: 1,
+    text: 'Wielkoszlemowy turniej tenisowy Wimbledon rozgrywany jest na kortach:',
+    answers: [
+      { text: 'trawiastych', correct: true },
+      { text: 'ziemnych', rival: true },
+      { text: 'twardych' },
+      { text: 'dywanowych' },
+    ],
+    note: 'Kort ziemny, czyli słynna mączka, to znak rozpoznawczy paryskiego Rolanda Garrosa — Wimbledon jako jedyny wielki szlem gra się na trawie.',
+  },
+  {
+    id: 'kuch-tatar',
+    label: 'Na surowo',
+    category: 'Kuchnia',
+    difficulty: 1,
+    text: 'Z jakiego mięsa przyrządza się tradycyjny tatar?',
+    answers: [
+      { text: 'z wołowiny', correct: true },
+      { text: 'z koniny', rival: true },
+      { text: 'z wieprzowiny' },
+      { text: 'z cielęciny' },
+    ],
+    note: 'Klasyczny tatar to siekana surowa polędwica wołowa, a legenda o mięsie odparzanym pod siodłem podpowiada zwodniczo koninę.',
+  },
+  {
+    id: 'liczby-milion',
+    label: 'Okrągła sumka',
+    category: 'Liczby',
+    difficulty: 1,
+    text: 'Ile zer ma liczba milion zapisana cyframi?',
+    answers: [
+      { text: '6', spoken: 'sześć', correct: true },
+      { text: '5', spoken: 'pięć', rival: true },
+      { text: '7', spoken: 'siedem' },
+      { text: '9', spoken: 'dziewięć' },
+    ],
+    note: 'Milion to jedynka i sześć zer, czyli tysiąc tysięcy; dziewięć zer ma dopiero miliard.',
+  },
+  {
+    id: 'tech-android',
+    label: 'Zielony ludzik',
+    category: 'Technologia',
+    difficulty: 1,
+    text: 'Właścicielem systemu operacyjnego Android jest firma:',
+    answers: [
+      { text: 'Google', correct: true },
+      { text: 'Samsung', rival: true },
+      { text: 'Apple' },
+      { text: 'Microsoft' },
+    ],
+    note: 'Samsung tylko instaluje Androida w swoich telefonach — system wraz z zielonym ludzikiem należy do Google’a.',
   },
 
-  /* ============================ poziom 4 ============================ */
+  /* ========================= reszta partii ========================= */
+
+  /* --- Geografia --- */
   {
-    id: 'geo-kaspijskie',
+    id: 'geo-czestochowa',
+    label: 'Województwa',
+    category: 'Geografia',
+    difficulty: 2,
+    text: 'Częstochowa leży w województwie:',
+    answers: [
+      { text: 'śląskim', correct: true },
+      { text: 'małopolskim', rival: true },
+      { text: 'łódzkim' },
+      { text: 'opolskim' },
+    ],
+    note: 'Historycznie miasto należało do Małopolski i do 1998 roku miało własne województwo — dlatego mało kto kojarzy je ze Śląskiem.',
+  },
+  {
+    id: 'geo-babia-gora',
+    label: 'Poza konkursem',
+    category: 'Geografia',
+    difficulty: 2,
+    text: 'Najwyższym szczytem Polski są Rysy w Tatrach. Najwyższy szczyt poza Tatrami to:',
+    answers: [
+      { text: 'Babia Góra', correct: true },
+      { text: 'Śnieżka', rival: true },
+      { text: 'Tarnica' },
+      { text: 'Turbacz' },
+    ],
+    note: 'Babia Góra ma 1725 metrów i góruje nad Śnieżką o ponad sto metrów, choć to Śnieżka jest bardziej medialna.',
+  },
+  {
+    id: 'geo-berno',
+    label: 'Stolice Europy',
+    category: 'Geografia',
+    difficulty: 2,
+    text: 'Stolicą Szwajcarii jest:',
+    answers: [
+      { text: 'Berno', correct: true },
+      { text: 'Zurych', rival: true },
+      { text: 'Genewa' },
+      { text: 'Bazylea' },
+    ],
+    note: 'Zurych jest największym miastem kraju, a Genewa siedzibą organizacji międzynarodowych — ale rząd i parlament urzędują w Bernie.',
+  },
+  {
+    id: 'geo-andaluzja',
+    label: 'Flamenco',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Które z tych hiszpańskich miast leży w Andaluzji?',
+    answers: [
+      { text: 'Sewilla', correct: true },
+      { text: 'Walencja', rival: true },
+      { text: 'Barcelona' },
+      { text: 'Madryt' },
+    ],
+    note: 'Pytanie dotyczy regionu, a nie sławy miasta: Walencja to Wspólnota Walencka, Barcelona — Katalonia, a Madryt leży w środku kraju.',
+  },
+  {
+    id: 'geo-drugi-szczyt-afryki',
+    label: 'Wiecznie drugi',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Najwyższym szczytem Afryki jest Kilimandżaro. Drugim co do wysokości jest:',
+    answers: [
+      { text: 'Mount Kenya', correct: true },
+      { text: 'Mount Stanley', rival: true },
+      { text: 'Ras Daszan' },
+      { text: 'Mount Meru' },
+    ],
+    note: 'Mount Kenya mierzy 5199 metrów i wyprzedza o niecałe sto metrów Mount Stanley w masywie Ruwenzori.',
+  },
+  {
+    id: 'geo-najglebsze-jezioro',
+    label: 'Do dna',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Najgłębszym jeziorem w Polsce jest:',
+    answers: [
+      { text: 'Hańcza', correct: true },
+      { text: 'Wigry', rival: true },
+      { text: 'Śniardwy' },
+      { text: 'Mamry' },
+    ],
+    note: 'Śniardwy są największe powierzchniowo, ale bardzo płytkie — rekord głębokości, ponad sto metrów, należy do suwalskiej Hańczy.',
+  },
+  {
+    id: 'geo-granica-litwa',
+    label: 'Miedza',
     category: 'Geografia',
     difficulty: 4,
-    text: 'Czym w rzeczywistości jest Morze Kaspijskie?',
+    text: 'Z którym z tych państw Polska ma najkrótszą granicę lądową?',
     answers: [
-      { text: 'Największym jeziorem świata', correct: true },
-      { text: 'Zatoką Oceanu Indyjskiego' },
-      { text: 'Morzem wewnętrznym połączonym z Morzem Czarnym' },
-      { text: 'Sztucznym zbiornikiem z czasów ZSRR' },
+      { text: 'Litwa', correct: true },
+      { text: 'Rosja', rival: true },
+      { text: 'Białoruś' },
+      { text: 'Słowacja' },
     ],
-    note: 'Nie ma połączenia z oceanem, więc mimo nazwy i zasolenia jest jeziorem — i to największym.',
+    note: 'Odcinek litewski liczy około stu kilometrów — mniej niż połowę granicy z obwodem kaliningradzkim, którą wielu uważa za najkrótszą.',
   },
   {
-    id: 'hist-wright-ksiezyc',
+    id: 'geo-kujawsko-pomorskie',
+    label: 'Polskie miasta',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Które z tych miast leży w województwie kujawsko-pomorskim?',
+    answers: [
+      { text: 'Grudziądz', correct: true },
+      { text: 'Elbląg', rival: true },
+      { text: 'Piła' },
+      { text: 'Słupsk' },
+    ],
+    note: 'Elbląg, mimo bliskości Wisły i Malborka, należy do warmińsko-mazurskiego — pytanie dotyczy podziału administracyjnego, nie geografii fizycznej.',
+  },
+  {
+    id: 'geo-zrodla-wisly',
+    label: 'Na początku',
+    category: 'Geografia',
+    difficulty: 5,
+    text: 'Źródła Wisły znajdują się na stokach:',
+    answers: [
+      { text: 'Baraniej Góry', correct: true },
+      { text: 'Babiej Góry', rival: true },
+      { text: 'Pilska' },
+      { text: 'Skrzycznego' },
+    ],
+    note: 'Czarna i Biała Wisełka wypływają z Baraniej Góry w Beskidzie Śląskim, a Babia Góra to najwyższy szczyt Beskidów.',
+  },
+  {
+    id: 'geo-drugie-jezioro',
+    label: 'Wicemistrz',
+    category: 'Geografia',
+    difficulty: 5,
+    text: 'Największym jeziorem w Polsce są Śniardwy. Drugie co do powierzchni jest jezioro:',
+    answers: [
+      { text: 'Mamry', correct: true },
+      { text: 'Łebsko', rival: true },
+      { text: 'Dąbie' },
+      { text: 'Jeziorak' },
+    ],
+    note: 'Mamry mają ponad 104 kilometry kwadratowe, Łebsko niespełna 72, więc to ono zajmuje trzecie miejsce.',
+  },
+  {
+    id: 'geo-sejmik-kujawsko',
+    label: 'Podwójna stolica',
+    category: 'Geografia',
+    difficulty: 5,
+    text: 'Siedzibą sejmiku województwa kujawsko-pomorskiego jest:',
+    answers: [
+      { text: 'Toruń', correct: true },
+      { text: 'Bydgoszcz', rival: true },
+      { text: 'Włocławek' },
+      { text: 'Grudziądz' },
+    ],
+    note: 'Jedno z dwóch województw o rozdzielonych stolicach — obok lubuskiego: wojewoda urzęduje w Bydgoszczy, a sejmik i marszałek w Toruniu.',
+  },
+
+  /* --- Historia --- */
+  {
+    id: 'hist-konstytucja',
+    label: 'Majówka',
+    category: 'Historia',
+    difficulty: 2,
+    text: 'Konstytucja Trzeciego Maja była pierwszą taką ustawą w Europie i drugą na świecie. Ta pierwsza na świecie powstała w:',
+    answers: [
+      { text: 'Stanach Zjednoczonych', correct: true },
+      { text: 'Francji', rival: true },
+      { text: 'Anglii' },
+      { text: 'Holandii' },
+    ],
+    note: 'Amerykanie uchwalili swoją ustawę zasadniczą cztery lata wcześniej, a Francuzi — kilka miesięcy po Polakach.',
+  },
+  {
+    id: 'hist-dwor-warszawa',
+    label: 'Przeprowadzka',
+    category: 'Historia',
+    difficulty: 3,
+    text: 'Który król przeniósł dwór królewski z Krakowa do Warszawy?',
+    answers: [
+      { text: 'Zygmunt III Waza', spoken: 'Zygmunt trzeci Waza', correct: true },
+      { text: 'Zygmunt II August', spoken: 'Zygmunt drugi August', rival: true },
+      { text: 'Stefan Batory' },
+      { text: 'Władysław IV Waza', spoken: 'Władysław czwarty Waza' },
+    ],
+    note: 'Zygmunt August przeniósł do Warszawy obrady sejmu, ale dwór przeprowadził dopiero Zygmunt III Waza, po pożarze Wawelu.',
+  },
+  {
+    id: 'hist-uklad-warszawski',
+    label: 'Zimna wojna',
+    category: 'Historia',
+    difficulty: 3,
+    text: 'Które z tych państw NIE należało do Układu Warszawskiego?',
+    answers: [
+      { text: 'Jugosławia', correct: true },
+      { text: 'Rumunia', rival: true },
+      { text: 'Bułgaria' },
+      { text: 'Węgry' },
+    ],
+    note: 'Rumunia bywała w bloku krnąbrna, ale formalnie z niego nie wystąpiła — to Jugosławia po zerwaniu ze Stalinem szła własną drogą.',
+  },
+  {
+    id: 'hist-wojna-stuletnia',
+    label: 'Sto lat',
+    category: 'Historia',
+    difficulty: 3,
+    text: 'Wojna stuletnia między Anglią a Francją trwała w rzeczywistości:',
+    answers: [
+      { text: '116 lat', spoken: 'sto szesnaście lat', correct: true },
+      { text: '100 lat', spoken: 'sto lat', rival: true },
+      { text: '99 lat', spoken: 'dziewięćdziesiąt dziewięć lat' },
+      { text: '80 lat', spoken: 'osiemdziesiąt lat' },
+    ],
+    note: 'Nazwa to późniejsze uproszczenie historyków — konflikt ciągnął się z przerwami od 1337 do 1453 roku.',
+  },
+  {
+    id: 'hist-koronacja-krakow',
+    label: 'Koronacje',
     category: 'Historia',
     difficulty: 4,
-    text: 'Ile lat dzieli pierwszy lot braci Wright od lądowania człowieka na Księżycu?',
-    answers: [{ text: '66', correct: true }, { text: '46' }, { text: '86' }, { text: '106' }],
-    note: 'Od 1903 do 1969 roku. Ludzie, którzy widzieli pierwszy samolot, dożyli lądowania na Księżycu.',
+    text: 'Który polski władca jako pierwszy koronował się w Krakowie, a nie w Gnieźnie?',
+    answers: [
+      { text: 'Władysław Łokietek', correct: true },
+      { text: 'Kazimierz Wielki', rival: true },
+      { text: 'Przemysł II', spoken: 'Przemysł drugi' },
+      { text: 'Wacław II', spoken: 'Wacław drugi' },
+    ],
+    note: 'Łokietek przeniósł ceremonię na Wawel w 1320 roku; Kazimierz Wielki był dopiero drugim królem koronowanym w Krakowie.',
   },
   {
-    id: 'jez-lakoniczny',
+    id: 'hist-vasco-da-gama',
+    label: 'Wielkie odkrycia',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Krzysztof Kolumb dopłynął do Ameryki w 1492 roku. Vasco da Gama dotarł drogą morską do Indii w roku:',
+    answers: [
+      { text: '1498', spoken: 'tysiąc czterysta dziewięćdziesiąt osiem', correct: true },
+      { text: '1488', spoken: 'tysiąc czterysta osiemdziesiąt osiem', rival: true },
+      { text: '1519', spoken: 'tysiąc pięćset dziewiętnaście' },
+      { text: '1522', spoken: 'tysiąc pięćset dwadzieścia dwa' },
+    ],
+    note: 'W 1488 roku Bartolomeu Dias opłynął jedynie Przylądek Dobrej Nadziei — do Kalikatu dotarł dopiero da Gama, dziesięć lat później.',
+  },
+  {
+    id: 'hist-powstanie-krakowskie',
+    label: 'Powstania',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Powstanie krakowskie wybuchło w roku:',
+    answers: [
+      { text: '1846', spoken: 'tysiąc osiemset czterdzieści sześć', correct: true },
+      { text: '1848', spoken: 'tysiąc osiemset czterdzieści osiem', rival: true },
+      { text: '1830', spoken: 'tysiąc osiemset trzydzieści' },
+      { text: '1863', spoken: 'tysiąc osiemset sześćdziesiąt trzy' },
+    ],
+    note: 'Powstanie w Wolnym Mieście Krakowie wybuchło w lutym 1846 roku, dwa lata przed Wiosną Ludów.',
+  },
+  {
+    id: 'hist-traktat-ryski',
+    label: 'Na papierze',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Traktat kończący wojnę polsko-bolszewicką podpisano w Rydze w roku:',
+    answers: [
+      { text: '1921', spoken: 'tysiąc dziewięćset dwadzieścia jeden', correct: true },
+      { text: '1920', spoken: 'tysiąc dziewięćset dwadzieścia', rival: true },
+      { text: '1919', spoken: 'tysiąc dziewięćset dziewiętnaście' },
+      { text: '1922', spoken: 'tysiąc dziewięćset dwadzieścia dwa' },
+    ],
+    note: 'Działania zbrojne zakończył rozejm z października 1920 roku, ale sam traktat pokojowy podpisano dopiero w marcu następnego.',
+  },
+
+  /* --- Język polski --- */
+  {
+    id: 'pol-groch',
+    label: 'Pod ścianą',
+    category: 'Język polski',
+    difficulty: 2,
+    text: 'Powiedzenie „rzucać grochem o ścianę” oznacza:',
+    answers: [
+      { text: 'mówić bez żadnego skutku', correct: true },
+      { text: 'mówić bez ładu i składu', rival: true },
+      { text: 'kłócić się o drobiazgi' },
+      { text: 'chwalić się bez powodu' },
+    ],
+    note: 'Obraz jest dosłowny — groch odbija się od muru dokładnie tak, jak argumenty od kogoś, kto nie zamierza słuchać.',
+  },
+  {
+    id: 'pol-ekwilibrystyka',
+    label: 'Na linie',
+    category: 'Język polski',
+    difficulty: 2,
+    text: 'Ekwilibrystyka to sztuka:',
+    answers: [
+      { text: 'utrzymywania równowagi', correct: true },
+      { text: 'żonglowania przedmiotami', rival: true },
+      { text: 'naśladowania głosów' },
+      { text: 'tresury zwierząt' },
+    ],
+    note: 'Słowo pochodzi od łacińskiego aequilibrium, czyli równowaga — żonglerka to zupełnie inna specjalność cyrkowa.',
+  },
+  {
+    id: 'pol-dolki',
+    label: 'Porzekadło',
+    category: 'Język polski',
+    difficulty: 2,
+    text: 'Przysłowie mówi: „Kto pod kim dołki kopie…”',
+    answers: [
+      { text: 'ten sam w nie wpada', correct: true },
+      { text: 'ten sam się w nich chowa', rival: true },
+      { text: 'temu ziemia się usuwa' },
+      { text: 'ten prędko je zasypie' },
+    ],
+    note: 'Sens jest bumerangowy: intryga wraca do autora, dlatego jedyne poprawne dokończenie mówi o wpadaniu.',
+  },
+  {
+    id: 'pol-lakoniczny',
+    label: 'Krótko mówiąc',
+    category: 'Język polski',
+    difficulty: 3,
+    text: 'Wypowiedź lakoniczna to wypowiedź:',
+    answers: [
+      { text: 'zwięzła', correct: true },
+      { text: 'zawiła', rival: true },
+      { text: 'kwiecista' },
+      { text: 'szydercza' },
+    ],
+    note: 'Słowo pochodzi od Lakonii, czyli ziemi Spartan, słynących z odpowiadania jednym słowem.',
+  },
+  {
+    id: 'pol-apologeta',
+    label: 'Z greki',
+    category: 'Język polski',
+    difficulty: 3,
+    text: 'Apologeta to ktoś, kto:',
+    answers: [
+      { text: 'gorliwie broni jakiejś idei', correct: true },
+      { text: 'publicznie przeprasza za swoje słowa', rival: true },
+      { text: 'zaciekle krytykuje cudze poglądy' },
+      { text: 'wygłasza mowy pogrzebowe' },
+    ],
+    note: 'Podobieństwo do angielskiego „apology” myli — grecka „apologia” oznaczała mowę obrończą, a nie przeprosiny.',
+  },
+  {
+    id: 'pol-dwoje-drzwi',
+    label: 'Po polsku',
+    category: 'Język polski',
+    difficulty: 3,
+    text: 'Poprawna forma to:',
+    answers: [
+      { text: 'dwoje drzwi', correct: true },
+      { text: 'dwa drzwi', rival: true },
+      { text: 'dwie drzwi' },
+      { text: 'obydwa drzwi' },
+    ],
+    note: 'Rzeczowniki występujące tylko w liczbie mnogiej, jak drzwi, sanie czy nożyczki, łączą się z liczebnikiem zbiorowym.',
+  },
+  {
+    id: 'pol-bednarz',
+    label: 'Fach w ręku',
     category: 'Język polski',
     difficulty: 4,
-    text: 'Co znaczy „lakoniczny”?',
+    text: 'Czym zajmuje się bednarz?',
     answers: [
-      { text: 'Zwięzły, powiedziany w kilku słowach', correct: true },
-      { text: 'Rozwlekły i pełen dygresji' },
-      { text: 'Chłodny, pozbawiony emocji' },
-      { text: 'Zawiły i trudny do zrozumienia' },
+      { text: 'Wyrabia beczki i cebrzyki', correct: true },
+      { text: 'Wyrabia koła do wozów', rival: true },
+      { text: 'Kuje podkowy' },
+      { text: 'Wyprawia skóry' },
     ],
-    note: 'Od Lakonii, czyli Sparty — jej mieszkańcy słynęli z odpowiadania jednym zdaniem.',
+    note: 'Koła robił kołodziej — obaj pracowali w drewnie, dlatego to najczęstsza pomyłka.',
   },
   {
-    id: 'nauka-powietrze',
+    id: 'pol-pyrrusowe',
+    label: 'Jeszcze jedno takie',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Określenie „pyrrusowe zwycięstwo” pochodzi od imienia:',
+    answers: [
+      { text: 'króla Epiru', correct: true },
+      { text: 'króla Macedonii', rival: true },
+      { text: 'wodza Kartaginy' },
+      { text: 'cesarza Rzymu' },
+    ],
+    note: 'Pyrrus pokonał Rzymian pod Ausculum, tracąc kwiat swojej armii — stąd przypisywane mu zdanie o jeszcze jednym takim zwycięstwie.',
+  },
+  {
+    id: 'pol-peryfraza',
+    label: 'Nie wprost',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Peryfraza to inaczej:',
+    answers: [
+      { text: 'omówienie', correct: true },
+      { text: 'przemilczenie', rival: true },
+      { text: 'uosobienie' },
+      { text: 'przesadnia' },
+    ],
+    note: 'Peryfraza zastępuje nazwę opisem („król zwierząt” zamiast „lew”), przemilczenie to elipsa, uosobienie to personifikacja, a przesadnia — hiperbola.',
+  },
+  {
+    id: 'pol-ekspiacja',
+    label: 'Mea culpa',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Ekspiacja to:',
+    answers: [
+      { text: 'odpokutowanie winy', correct: true },
+      { text: 'publiczne wyznanie winy', rival: true },
+      { text: 'darowanie kary' },
+      { text: 'oczyszczenie z zarzutów' },
+    ],
+    note: 'Ekspiacja oznacza zadośćuczynienie za winę, a nie samo jej wyznanie, które jest konfesją.',
+  },
+
+  /* --- Nauka --- */
+  {
+    id: 'nauka-fahrenheit',
+    label: 'Za oceanem',
+    category: 'Nauka',
+    difficulty: 2,
+    text: 'W skali Fahrenheita woda zamarza w temperaturze:',
+    answers: [
+      { text: '32 stopni', spoken: 'trzydziestu dwóch stopni', correct: true },
+      { text: '0 stopni', spoken: 'zera stopni', rival: true },
+      { text: '100 stopni', spoken: 'stu stopni' },
+      { text: '212 stopni', spoken: 'dwustu dwunastu stopni' },
+    ],
+    note: '212 stopni Fahrenheita to punkt wrzenia, a zero w tej skali odpowiada mniej więcej minus osiemnastu stopniom Celsjusza.',
+  },
+  {
+    id: 'nauka-potas',
+    label: 'Tablica',
+    category: 'Nauka',
+    difficulty: 2,
+    text: 'Symbolem K oznacza się w chemii:',
+    answers: [
+      { text: 'potas', correct: true },
+      { text: 'krzem', rival: true },
+      { text: 'kobalt' },
+      { text: 'krypton' },
+    ],
+    note: 'Symbol pochodzi od łacińskiego kalium, a nie od polskiej nazwy — krzem to Si, kobalt Co, krypton Kr.',
+  },
+  {
+    id: 'nauka-najwiekszy-narzad',
+    label: 'Anatomia',
+    category: 'Nauka',
+    difficulty: 3,
+    text: 'Największym narządem ludzkiego ciała jest:',
+    answers: [
+      { text: 'skóra', correct: true },
+      { text: 'wątroba', rival: true },
+      { text: 'płuca' },
+      { text: 'jelito cienkie' },
+    ],
+    note: 'Wątroba jest największym narządem wewnętrznym, ale skóra bije ją i masą, i powierzchnią.',
+  },
+  {
+    id: 'nauka-kat-pieciokat',
+    label: 'Pentagon',
     category: 'Nauka',
     difficulty: 4,
-    text: 'Którego gazu jest najwięcej w powietrzu, którym oddychamy?',
+    text: 'Ile stopni ma kąt wewnętrzny w pięciokącie foremnym?',
     answers: [
-      { text: 'Azotu', correct: true },
-      { text: 'Tlenu' },
-      { text: 'Dwutlenku węgla' },
-      { text: 'Argonu' },
+      { text: '108', spoken: 'sto osiem', correct: true },
+      { text: '120', spoken: 'sto dwadzieścia', rival: true },
+      { text: '90', spoken: 'dziewięćdziesiąt' },
+      { text: '144', spoken: 'sto czterdzieści cztery' },
     ],
-    note: 'Azot to 78 procent, tlen tylko 21. Argon jest trzeci, a dwutlenku węgla jest ułamek procenta.',
+    note: '120 stopni to kąt w sześciokącie, a 144 — w dziesięciokącie; w pięciokącie suma kątów wynosi 540 stopni.',
+  },
+  {
+    id: 'nauka-symbol-w',
+    label: 'Pierwiastki',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Pierwiastek chemiczny o symbolu „W” to:',
+    answers: [
+      { text: 'wolfram', correct: true },
+      { text: 'wanad', rival: true },
+      { text: 'wapń' },
+      { text: 'węgiel' },
+    ],
+    note: 'Polskie nazwy mylą trop: wanad ma symbol V, wapń Ca, a węgiel C — literę W nosi wyłącznie wolfram.',
+  },
+  {
+    id: 'nauka-najkrotsza-doba',
+    label: 'Planety',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Najkrótszą dobę spośród planet Układu Słonecznego ma:',
+    answers: [
+      { text: 'Jowisz', correct: true },
+      { text: 'Saturn', rival: true },
+      { text: 'Uran' },
+      { text: 'Neptun' },
+    ],
+    note: 'Największa planeta obraca się najszybciej — doba Jowisza trwa niespełna dziesięć godzin, Saturna nieco ponad dziesięć.',
+  },
+
+  /* --- Przyroda --- */
+  {
+    id: 'przyr-jez',
+    label: 'Do wiosny',
+    category: 'Przyroda',
+    difficulty: 2,
+    text: 'Które z tych zwierząt zapada w prawdziwy sen zimowy?',
+    answers: [
+      { text: 'jeż', correct: true },
+      { text: 'niedźwiedź brunatny', rival: true },
+      { text: 'borsuk' },
+      { text: 'wilk' },
+    ],
+    note: 'Niedźwiedź tylko drzemie — jego temperatura spada nieznacznie i potrafi się obudzić, podczas gdy jeż wychładza się niemal do temperatury otoczenia.',
+  },
+  {
+    id: 'przyr-nie-gryzon',
+    label: 'Czarna owca',
+    category: 'Przyroda',
+    difficulty: 3,
+    text: 'Które z tych zwierząt NIE jest gryzoniem?',
+    answers: [
+      { text: 'zając', correct: true },
+      { text: 'bóbr', rival: true },
+      { text: 'wiewiórka' },
+      { text: 'szczur' },
+    ],
+    note: 'Bóbr mimo rozmiarów jest gryzoniem, a zające i króliki tworzą osobny rząd zajęczaków, z dodatkową parą siekaczy w szczęce.',
   },
   {
     id: 'przyr-osmiornica',
+    label: 'Serce nie sługa',
     category: 'Przyroda',
-    difficulty: 4,
+    difficulty: 3,
     text: 'Ile serc ma ośmiornica?',
-    answers: [{ text: '3', correct: true }, { text: '1' }, { text: '2' }, { text: '5' }],
-    note: 'Dwa tłoczą krew do skrzeli, trzecie do reszty ciała. Przy pływaniu to główne przestaje bić.',
-  },
-  {
-    id: 'film-oscar-ida',
-    category: 'Film',
-    difficulty: 4,
-    text: 'Który polski film zdobył Oscara dla najlepszego filmu nieanglojęzycznego?',
     answers: [
-      { text: '„Ida”', correct: true },
-      { text: '„Zimna wojna”' },
-      { text: '„Katyń”' },
-      { text: '„Boże Ciało”' },
+      { text: '3', spoken: 'trzy', correct: true },
+      { text: '2', spoken: 'dwa', rival: true },
+      { text: '1', spoken: 'jedno' },
+      { text: '8', spoken: 'osiem' },
     ],
-    note: '„Ida” Pawła Pawlikowskiego wygrała w 2015 roku. Pozostałe trzy były nominowane, ale bez statuetki.',
+    note: 'Dwa serca tłoczą krew przez skrzela, a trzecie, główne, rozprowadza ją po reszcie ciała — liczba ramion nie ma z tym nic wspólnego.',
   },
   {
-    id: 'sport-malysz',
-    category: 'Sport',
-    difficulty: 4,
-    text: 'Który polski skoczek jako pierwszy wygrał Turniej Czterech Skoczni?',
+    id: 'przyr-najwiekszy-park',
+    label: 'Parki narodowe',
+    category: 'Przyroda',
+    difficulty: 5,
+    text: 'Największym powierzchniowo parkiem narodowym w Polsce jest park:',
     answers: [
-      { text: 'Adam Małysz', correct: true },
-      { text: 'Kamil Stoch' },
-      { text: 'Wojciech Fortuna' },
-      { text: 'Piotr Żyła' },
+      { text: 'Biebrzański', correct: true },
+      { text: 'Kampinoski', rival: true },
+      { text: 'Bieszczadzki' },
+      { text: 'Tatrzański' },
     ],
-    note: 'Małysz wygrał w sezonie 2000/2001. Stoch powtórzył to dopiero w 2017/2018.',
-  },
-  {
-    id: 'lit-ferdydurke',
-    category: 'Literatura',
-    difficulty: 4,
-    text: 'Kto napisał „Ferdydurke”?',
-    answers: [
-      { text: 'Witold Gombrowicz', correct: true },
-      { text: 'Bruno Schulz' },
-      { text: 'Stanisław Ignacy Witkiewicz' },
-      { text: 'Zofia Nałkowska' },
-    ],
-    note: 'Gombrowicz, 1937. Wszyscy czterej tworzyli w tym samym dwudziestoleciu.',
-  },
-  {
-    id: 'licz-luty-2100',
-    category: 'Liczby',
-    difficulty: 4,
-    text: 'Ile dni będzie miał luty w roku 2100?',
-    answers: [{ text: '28', correct: true }, { text: '29' }, { text: '30' }, { text: '27' }],
-    note: 'Rok podzielny przez 100 nie jest przestępny — chyba że dzieli się przez 400. Rok 2000 był, 2100 nie będzie.',
-  },
-  {
-    id: 'kuch-czekolada',
-    category: 'Kuchnia',
-    difficulty: 4,
-    text: 'Z czego powstaje biała czekolada?',
-    answers: [
-      { text: 'Z masła kakaowego, bez miazgi kakaowej', correct: true },
-      { text: 'Z kakao odbarwionego chemicznie' },
-      { text: 'Z mleka w proszku i cukru, bez składników kakaowych' },
-      { text: 'Z ziaren kakaowca zbieranych przed dojrzeniem' },
-    ],
-    note: 'Zawiera tłuszcz z ziarna, ale nie zawiera miazgi — stąd brak brązowego koloru i gorzkiego smaku.',
+    note: 'Bagna nad Biebrzą zajmują blisko 600 kilometrów kwadratowych, znacznie więcej niż Kampinos, Bieszczady czy Tatry.',
   },
 
-  /* ============================ poziom 5 ============================ */
+  /* --- Kultura --- */
   {
-    id: 'geo-poludniowa-polkula',
-    category: 'Geografia',
-    difficulty: 5,
-    text: 'Które z tych państw leży w całości na półkuli południowej?',
+    id: 'kult-czardasz',
+    label: 'Na parkiecie',
+    category: 'Kultura',
+    difficulty: 2,
+    text: 'Który z tych tańców NIE należy do polskich tańców narodowych?',
     answers: [
-      { text: 'Australia', correct: true },
-      { text: 'Brazylia' },
-      { text: 'Kenia' },
-      { text: 'Ekwador' },
+      { text: 'czardasz', correct: true },
+      { text: 'oberek', rival: true },
+      { text: 'kujawiak' },
+      { text: 'mazur' },
     ],
-    note: 'Równik przecina Brazylię, Kenię i — co słychać już w nazwie — Ekwador.',
+    note: 'Polskich tańców narodowych jest pięć: polonez, krakowiak, mazur, kujawiak i oberek — czardasz przyjechał z Węgier.',
   },
   {
-    id: 'hist-uj',
-    category: 'Historia',
-    difficulty: 5,
-    text: 'W którym roku założono Uniwersytet Jagielloński?',
-    answers: [{ text: '1364', correct: true }, { text: '1264' }, { text: '1400' }, { text: '1464' }],
-    note: 'Kazimierz Wielki, 1364. W 1400 roku Władysław Jagiełło uczelnię odnowił — stąd druga data w obiegu.',
+    id: 'kult-unesco-1978',
+    label: 'Dziedzictwo',
+    category: 'Kultura',
+    difficulty: 3,
+    text: 'Na pierwszej liście światowego dziedzictwa UNESCO znalazły się dwa polskie obiekty: Stare Miasto w Krakowie oraz:',
+    answers: [
+      { text: 'kopalnia soli w Wieliczce', correct: true },
+      { text: 'Puszcza Białowieska', rival: true },
+      { text: 'zamek krzyżacki w Malborku' },
+      { text: 'Stare Miasto w Zamościu' },
+    ],
+    note: 'Wieliczka trafiła na listę w 1978 roku, w gronie zaledwie dwunastu pierwszych obiektów świata; Białowieżę wpisano rok później.',
   },
   {
-    id: 'jez-gilotyna',
-    category: 'Język polski',
-    difficulty: 5,
-    text: 'Które z tych słów pochodzi od nazwiska?',
+    id: 'kult-didaskalia',
+    label: 'Między wierszami',
+    category: 'Kultura',
+    difficulty: 4,
+    text: 'Czym są didaskalia w tekście dramatu?',
     answers: [
-      { text: 'Gilotyna', correct: true },
-      { text: 'Parasol' },
-      { text: 'Kanapka' },
-      { text: 'Firanka' },
+      { text: 'Uwagi autora dotyczące gry aktorów i sceny', correct: true },
+      { text: 'Opis dekoracji przygotowany przez scenografa', rival: true },
+      { text: 'Monolog bohatera kierowany do widowni' },
+      { text: 'Przerwa między aktami' },
     ],
-    note: 'Od Josepha Guillotina, który maszyny nie wynalazł — postulował tylko, by egzekucje były szybkie.',
+    note: 'Didaskalia pisze autor i drukuje się je zwykle kursywą — scenograf dopiero z nich korzysta.',
   },
   {
-    id: 'nauka-masa-slonca',
-    category: 'Nauka',
+    id: 'kult-szal-uniesien',
+    label: 'Skandal',
+    category: 'Kultura',
     difficulty: 5,
-    text: 'Jaką część masy Układu Słonecznego stanowi samo Słońce?',
+    text: 'Autorem obrazu „Szał uniesień” jest:',
     answers: [
-      { text: 'Ponad 99 procent', correct: true },
-      { text: 'Około 70 procent' },
-      { text: 'Około 85 procent' },
-      { text: 'Około 95 procent' },
+      { text: 'Władysław Podkowiński', correct: true },
+      { text: 'Jacek Malczewski', rival: true },
+      { text: 'Józef Mehoffer' },
+      { text: 'Leon Wyczółkowski' },
     ],
-    note: '99,86 procent. Cała reszta — planety, księżyce, planetoidy — mieści się w tym, co zostało.',
+    note: 'Podkowiński namalował „Szał uniesień” w 1894 roku i sam pociął go nożem na własnej wystawie.',
   },
   {
-    id: 'przyr-miod',
-    category: 'Przyroda',
+    id: 'kult-grunwald-matejki',
+    label: 'Duży format',
+    category: 'Kultura',
     difficulty: 5,
-    text: 'Dlaczego miód praktycznie się nie psuje?',
+    text: '„Bitwa pod Grunwaldem” Jana Matejki znajduje się w Muzeum Narodowym w:',
     answers: [
-      { text: 'Jest kwaśny i niemal pozbawiony wody, więc bakterie w nim nie żyją', correct: true },
-      { text: 'Zawiera naturalny antybiotyk wytwarzany przez pszczoły' },
-      { text: 'Jest sterylny, bo pszczoły podgrzewają go w ulu' },
-      { text: 'Cukry w miodzie nie ulegają rozkładowi' },
+      { text: 'Warszawie', correct: true },
+      { text: 'Krakowie', rival: true },
+      { text: 'Poznaniu' },
+      { text: 'Wrocławiu' },
     ],
-    note: 'W grobowcach egipskich znaleziono miód sprzed tysięcy lat, wciąż zdatny do jedzenia.',
+    note: 'Choć Matejko był krakowianinem, jego największe płótno wisi w Warszawie — w Krakowie pozostał „Hołd pruski”.',
+  },
+
+  /* --- Film --- */
+  {
+    id: 'film-pierwsza-animacja',
+    label: 'Kreskówki',
+    category: 'Film',
+    difficulty: 3,
+    text: 'Pierwszym pełnometrażowym filmem animowanym wytwórni Disneya była:',
+    answers: [
+      { text: '„Królewna Śnieżka i siedmiu krasnoludków”', correct: true },
+      { text: '„Pinokio”', rival: true },
+      { text: '„Fantazja”' },
+      { text: '„Bambi”' },
+    ],
+    note: 'Śnieżka weszła na ekrany w 1937 roku, trzy lata przed „Pinokiem” i „Fantazją”.',
   },
   {
-    id: 'kuch-szafran',
-    category: 'Kuchnia',
-    difficulty: 5,
-    text: 'Czym jest szafran, najdroższa przyprawa świata?',
+    id: 'film-polski-oscar',
+    label: 'Polskie kino',
+    category: 'Film',
+    difficulty: 3,
+    text: 'Który polski film jako pierwszy zdobył Oscara w kategorii najlepszy film nieanglojęzyczny?',
     answers: [
-      { text: 'Znamionami kwiatu krokusa, zbieranymi ręcznie', correct: true },
-      { text: 'Sproszkowaną korą drzewa szafranowego' },
-      { text: 'Suszonym korzeniem odmiany kurkumy' },
-      { text: 'Pyłkiem zbieranym z kwiatów przez pszczoły' },
+      { text: '„Ida”', correct: true },
+      { text: '„Pianista”', rival: true },
+      { text: '„Zimna wojna”' },
+      { text: '„Katyń”' },
     ],
-    note: 'Każdy kwiat daje trzy nitki. Na kilogram przyprawy trzeba ich około 150 tysięcy — stąd cena.',
+    note: '„Pianista” przyniósł statuetki za reżyserię, scenariusz i główną rolę męską, ale w kategorii filmu nieanglojęzycznego pierwsza była dopiero „Ida”.',
   },
   {
     id: 'film-rejs',
+    label: 'Na wodzie',
     category: 'Film',
     difficulty: 5,
-    text: 'Kto wyreżyserował „Rejs”?',
+    text: 'Reżyserem komedii „Rejs” był:',
     answers: [
       { text: 'Marek Piwowski', correct: true },
-      { text: 'Stanisław Bareja' },
-      { text: 'Juliusz Machulski' },
+      { text: 'Stanisław Bareja', rival: true },
       { text: 'Andrzej Kondratiuk' },
+      { text: 'Sylwester Chęciński' },
     ],
-    note: 'Bareja nakręcił „Misia” i „Alternatywy 4” — „Rejs” to jednak Piwowski.',
+    note: 'Pułapką jest podobna poetyka absurdu — „Rejs” nakręcił Piwowski, a Bareja odpowiada za „Misia”.',
   },
   {
-    id: 'sport-maraton',
+    id: 'film-saragossa',
+    label: 'Ekranizacje',
+    category: 'Film',
+    difficulty: 5,
+    text: 'Film „Rękopis znaleziony w Saragossie” wyreżyserował:',
+    answers: [
+      { text: 'Wojciech Jerzy Has', correct: true },
+      { text: 'Jerzy Kawalerowicz', rival: true },
+      { text: 'Andrzej Munk' },
+      { text: 'Tadeusz Konwicki' },
+    ],
+    note: 'Has zekranizował powieść Jana Potockiego, a Kawalerowicz z tego samego pokolenia nakręcił „Matkę Joannę od Aniołów”.',
+  },
+
+  /* --- Muzyka --- */
+  {
+    id: 'muz-chopin',
+    label: 'Sercem i ciałem',
+    category: 'Muzyka',
+    difficulty: 2,
+    text: 'Serce Fryderyka Chopina spoczywa w warszawskim kościele Świętego Krzyża. Jego ciało pochowano w:',
+    answers: [
+      { text: 'Paryżu', correct: true },
+      { text: 'Żelazowej Woli', rival: true },
+      { text: 'Wiedniu' },
+      { text: 'Londynie' },
+    ],
+    note: 'Kompozytor zmarł w Paryżu i leży na cmentarzu Père-Lachaise; do kraju wróciło tylko serce, przewiezione potajemnie przez jego siostrę.',
+  },
+  {
+    id: 'muz-saksofon',
+    label: 'Dęta sprawa',
+    category: 'Muzyka',
+    difficulty: 3,
+    text: 'Który z tych instrumentów zalicza się do dętych drewnianych?',
+    answers: [
+      { text: 'saksofon', correct: true },
+      { text: 'waltornia', rival: true },
+      { text: 'trąbka' },
+      { text: 'puzon' },
+    ],
+    note: 'O przynależności decyduje sposób wydobycia dźwięku, a nie materiał: saksofon jest z metalu, lecz gra się na nim drewnianym stroikiem.',
+  },
+  {
+    id: 'muz-mazurek',
+    label: 'Symbole narodowe',
+    category: 'Muzyka',
+    difficulty: 3,
+    text: 'Słowa „Mazurka Dąbrowskiego” powstały:',
+    answers: [
+      { text: 'we Włoszech', correct: true },
+      { text: 'we Francji', rival: true },
+      { text: 'w Polsce' },
+      { text: 'w Rosji' },
+    ],
+    note: 'Józef Wybicki napisał pieśń dla Legionów stacjonujących w Reggio nell’Emilia — stąd w tekście mowa o powrocie z ziemi włoskiej.',
+  },
+  {
+    id: 'muz-konkurs-chopinowski',
+    label: 'Terminarz',
+    category: 'Muzyka',
+    difficulty: 4,
+    text: 'Międzynarodowy Konkurs Pianistyczny imienia Fryderyka Chopina odbywa się:',
+    answers: [
+      { text: 'co 5 lat', spoken: 'co pięć lat', correct: true },
+      { text: 'co 4 lata', spoken: 'co cztery lata', rival: true },
+      { text: 'co 3 lata', spoken: 'co trzy lata' },
+      { text: 'co 2 lata', spoken: 'co dwa lata' },
+    ],
+    note: 'Pięcioletni rytm przyjęto już przy pierwszym konkursie w 1927 roku; przerwała go wojna, a ostatnio pandemia, przez którą osiemnastą edycję przesunięto z 2020 na 2021 rok.',
+  },
+  {
+    id: 'muz-harnasie',
+    label: 'Balet',
+    category: 'Muzyka',
+    difficulty: 5,
+    text: 'Autorem baletu „Harnasie” jest:',
+    answers: [
+      { text: 'Karol Szymanowski', correct: true },
+      { text: 'Ludomir Różycki', rival: true },
+      { text: 'Mieczysław Karłowicz' },
+      { text: 'Stanisław Moniuszko' },
+    ],
+    note: 'Góralskie „Harnasie” napisał Szymanowski, natomiast Różyckiego kojarzy się z baletem „Pan Twardowski”.',
+  },
+  {
+    id: 'muz-kocham-cie',
+    label: 'Polski rock',
+    category: 'Muzyka',
+    difficulty: 5,
+    text: 'Piosenkę „Kocham cię, kochanie moje” nagrał zespół:',
+    answers: [
+      { text: 'Maanam', correct: true },
+      { text: 'Republika', rival: true },
+      { text: 'Lady Pank' },
+      { text: 'Lombard' },
+    ],
+    note: 'Utwór z muzyką Marka Jackowskiego i tekstem Kory ukazał się w 1983 roku jako singiel Tonpressu — nigdy nie trafił na żadną płytę studyjną zespołu.',
+  },
+
+  /* --- Sport --- */
+  {
+    id: 'sport-set',
+    label: 'Nad siatką',
+    category: 'Sport',
+    difficulty: 2,
+    text: 'Zwykłego seta w siatkówce wygrywa drużyna, która zdobędzie co najmniej:',
+    answers: [
+      { text: '25 punktów', spoken: 'dwadzieścia pięć punktów', correct: true },
+      { text: '15 punktów', spoken: 'piętnaście punktów', rival: true },
+      { text: '21 punktów', spoken: 'dwadzieścia jeden punktów' },
+      { text: '30 punktów', spoken: 'trzydzieści punktów' },
+    ],
+    note: 'Do piętnastu grano przed zmianą przepisów pod koniec lat dziewięćdziesiątych — dziś tyle liczy się już tylko w tie-breaku.',
+  },
+  {
+    id: 'sport-chamonix',
+    label: 'Zimowe igrzyska',
+    category: 'Sport',
+    difficulty: 2,
+    text: 'Pierwsze zimowe igrzyska olimpijskie odbyły się we Francji, w miejscowości:',
+    answers: [
+      { text: 'Chamonix', correct: true },
+      { text: 'Grenoble', rival: true },
+      { text: 'Albertville' },
+      { text: 'Lyon' },
+    ],
+    note: 'Chamonix gościło sportowców w 1924 roku, Grenoble dopiero czterdzieści cztery lata później, a Lyon nigdy.',
+  },
+  {
+    id: 'sport-grochy',
+    label: 'Pod górkę',
+    category: 'Sport',
+    difficulty: 3,
+    text: 'W Tour de France koszulkę w czerwone grochy nosi lider klasyfikacji:',
+    answers: [
+      { text: 'górskiej', correct: true },
+      { text: 'punktowej', rival: true },
+      { text: 'młodzieżowej' },
+      { text: 'drużynowej' },
+    ],
+    note: 'Klasyfikacja punktowa ma koszulkę zieloną, a najlepszy młodzieżowiec jedzie w białej.',
+  },
+  {
+    id: 'sport-1500',
+    label: 'Bieżnia',
+    category: 'Sport',
+    difficulty: 3,
+    text: 'Ile okrążeń standardowej stadionowej bieżni liczy bieg na 1500 metrów?',
+    answers: [
+      { text: '3,75', spoken: 'trzy i trzy czwarte', correct: true },
+      { text: '4', spoken: 'cztery', rival: true },
+      { text: '3,5', spoken: 'trzy i pół' },
+      { text: '5', spoken: 'pięć' },
+    ],
+    note: 'Okrążenie ma 400 metrów, więc do pełnych czterech brakuje stu — biegacze startują z linii na początku przeciwległej prostej.',
+  },
+  {
+    id: 'sport-siatkowka-1974',
+    label: 'Rocznice',
+    category: 'Sport',
+    difficulty: 4,
+    text: 'W którym roku polscy siatkarze po raz pierwszy zostali mistrzami świata?',
+    answers: [
+      { text: '1974', spoken: 'tysiąc dziewięćset siedemdziesiąt cztery', correct: true },
+      { text: '1976', spoken: 'tysiąc dziewięćset siedemdziesiąt sześć', rival: true },
+      { text: '1972', spoken: 'tysiąc dziewięćset siedemdziesiąt dwa' },
+      { text: '1978', spoken: 'tysiąc dziewięćset siedemdziesiąt osiem' },
+    ],
+    note: 'W 1976 roku w Montrealu Polacy sięgnęli po złoto olimpijskie — tytuł mistrzów świata zdobyli dwa lata wcześniej w Meksyku.',
+  },
+  {
+    id: 'sport-fortuna',
+    label: 'Fortuna kołem',
     category: 'Sport',
     difficulty: 5,
-    text: 'Skąd wzięła się dziwna długość maratonu — 42,195 km?',
+    text: 'Wojciech Fortuna zdobył olimpijskie złoto w skokach narciarskich w roku:',
     answers: [
-      { text: 'Z igrzysk w Londynie, gdzie trasę wydłużono do loży królewskiej', correct: true },
-      { text: 'To dokładna odległość z Maratonu do Aten' },
-      { text: 'Zaokrąglono ją z 26 mil angielskich' },
-      { text: 'Wyznaczono ją losowo na pierwszych igrzyskach w 1896 roku' },
+      { text: '1972', spoken: 'tysiąc dziewięćset siedemdziesiąt dwa', correct: true },
+      { text: '1976', spoken: 'tysiąc dziewięćset siedemdziesiąt sześć', rival: true },
+      { text: '1968', spoken: 'tysiąc dziewięćset sześćdziesiąt osiem' },
+      { text: '1980', spoken: 'tysiąc dziewięćset osiemdziesiąt' },
     ],
-    note: 'Londyn 1908: start pod oknami zamku w Windsorze, meta przed lożą królewską. Od 1921 roku to obowiązujący dystans.',
+    note: 'Fortuna wygrał konkurs na dużej skoczni w Sapporo, zdobywając pierwsze polskie złoto zimowych igrzysk.',
   },
   {
-    id: 'lit-hanna-krall',
-    category: 'Literatura',
+    id: 'sport-siatka-wysokosc',
+    label: 'Wysoko zawieszona',
+    category: 'Sport',
     difficulty: 5,
-    text: 'Kto napisał „Zdążyć przed Panem Bogiem”?',
+    text: 'Na jakiej wysokości zawieszona jest siatka w meczu siatkówki mężczyzn?',
     answers: [
-      { text: 'Hanna Krall', correct: true },
-      { text: 'Ryszard Kapuściński' },
-      { text: 'Marek Edelman' },
+      { text: '2,43 m', spoken: 'dwa metry i czterdzieści trzy centymetry', correct: true },
+      { text: '2,24 m', spoken: 'dwa metry i dwadzieścia cztery centymetry', rival: true },
+      { text: '2,35 m', spoken: 'dwa metry i trzydzieści pięć centymetrów' },
+      { text: '2,50 m', spoken: 'dwa metry i pięćdziesiąt centymetrów' },
+    ],
+    note: 'Dwa metry czterdzieści trzy to norma męska, a dwa metry dwadzieścia cztery — kobieca.',
+  },
+
+  /* --- Kuchnia --- */
+  {
+    id: 'kuch-zur',
+    label: 'Na kwaśno',
+    category: 'Kuchnia',
+    difficulty: 2,
+    text: 'Zakwas na tradycyjny żur przygotowuje się z mąki:',
+    answers: [
+      { text: 'żytniej', correct: true },
+      { text: 'pszennej', rival: true },
+      { text: 'gryczanej' },
+      { text: 'jęczmiennej' },
+    ],
+    note: 'To rodzaj mąki odróżnia obie zupy: żur stoi na życie, a barszcz biały na pszenicy.',
+  },
+  {
+    id: 'kuch-jaglana',
+    label: 'Ziarno',
+    category: 'Kuchnia',
+    difficulty: 3,
+    text: 'Kaszę jaglaną otrzymuje się z ziaren:',
+    answers: [
+      { text: 'prosa', correct: true },
+      { text: 'jęczmienia', rival: true },
+      { text: 'gryki' },
+      { text: 'pszenicy' },
+    ],
+    note: 'Myli podobieństwo nazw do kaszy jęczmiennej — z jęczmienia są pęczak i perłowa, z gryki gryczana, a z pszenicy manna.',
+  },
+  {
+    id: 'kuch-balsamiczny',
+    label: 'Kwaśna sprawa',
+    category: 'Kuchnia',
+    difficulty: 4,
+    text: 'Z czego powstaje tradycyjny ocet balsamiczny z Modeny?',
+    answers: [
+      { text: 'z gotowanego moszczu winogronowego', correct: true },
+      { text: 'z czerwonego wina', rival: true },
+      { text: 'ze sfermentowanych jabłek' },
+      { text: 'z ryżu' },
+    ],
+    note: 'Do tradycyjnego balsamico nie dolewa się ani wina, ani octu winnego — zagęszczony, gotowany moszcz fermentuje sam i dojrzewa latami w kolejnych beczkach.',
+  },
+  {
+    id: 'kuch-szafran',
+    label: 'Na wagę złota',
+    category: 'Kuchnia',
+    difficulty: 4,
+    text: 'Która z tych przypraw pochodzi z kwiatu?',
+    answers: [
+      { text: 'szafran', correct: true },
+      { text: 'kardamon', rival: true },
+      { text: 'cynamon' },
+      { text: 'imbir' },
+    ],
+    note: 'Szafran to suszone znamiona słupków krokusa, kardamon pochodzi z owocu, cynamon z kory, a imbir z kłącza.',
+  },
+  {
+    id: 'kuch-negroni',
+    label: 'Gorzka prawda',
+    category: 'Kuchnia',
+    difficulty: 5,
+    text: 'Obok ginu i czerwonego wermutu trzecim składnikiem koktajlu negroni jest:',
+    answers: [
+      { text: 'Campari', correct: true },
+      { text: 'Aperol', rival: true },
+      { text: 'Cynar' },
+      { text: 'Amaro Averna' },
+    ],
+    note: 'Klasyczne negroni to równe części ginu, czerwonego wermutu i Campari — z Aperolem powstaje inny, łagodniejszy drink.',
+  },
+
+  /* --- Literatura --- */
+  {
+    id: 'lit-pan-tadeusz',
+    label: 'Z tęsknoty',
+    category: 'Literatura',
+    difficulty: 2,
+    text: 'Adam Mickiewicz napisał „Pana Tadeusza” w:',
+    answers: [
+      { text: 'Paryżu', correct: true },
+      { text: 'Wilnie', rival: true },
+      { text: 'Nowogródku' },
+      { text: 'Rzymie' },
+    ],
+    note: 'Epopeja powstała na emigracji w latach trzydziestych XIX wieku — opisywanych stron poeta nie oglądał już od dziesięciu lat.',
+  },
+  {
+    id: 'lit-nobel-pierwszy',
+    label: 'Nagrody',
+    category: 'Literatura',
+    difficulty: 2,
+    text: 'Pierwszym Polakiem uhonorowanym Literacką Nagrodą Nobla był:',
+    answers: [
+      { text: 'Henryk Sienkiewicz', correct: true },
+      { text: 'Władysław Reymont', rival: true },
+      { text: 'Czesław Miłosz' },
       { text: 'Wisława Szymborska' },
     ],
-    note: 'To zapis rozmowy Hanny Krall z Markiem Edelmanem — on jest bohaterem książki, nie jej autorem.',
+    note: 'Sienkiewicz odebrał nagrodę w 1905 roku, głównie dzięki „Quo vadis”; Reymont za „Chłopów” dopiero dziewiętnaście lat później.',
   },
   {
-    id: 'licz-dwa-do-dziesiatej',
+    id: 'lit-nie-mickiewicz',
+    label: 'Lektury',
+    category: 'Literatura',
+    difficulty: 3,
+    text: 'Który z tych utworów NIE wyszedł spod pióra Adama Mickiewicza?',
+    answers: [
+      { text: '„Kordian”', correct: true },
+      { text: '„Grażyna”', rival: true },
+      { text: '„Dziady”' },
+      { text: '„Konrad Wallenrod”' },
+    ],
+    note: '„Kordian” to odpowiedź Juliusza Słowackiego na „Dziady”, przez co bywa mylnie przypisywany Mickiewiczowi.',
+  },
+  {
+    id: 'lit-rosyjscy-noblisci',
+    label: 'Nobliści',
+    category: 'Literatura',
+    difficulty: 5,
+    text: 'Który z tych rosyjskich pisarzy NIE otrzymał literackiej Nagrody Nobla?',
+    answers: [
+      { text: 'Lew Tołstoj', correct: true },
+      { text: 'Michaił Szołochow', rival: true },
+      { text: 'Iwan Bunin' },
+      { text: 'Aleksander Sołżenicyn' },
+    ],
+    note: 'Tołstoj był wielokrotnie nominowany, ale nigdy nie dostał nagrody — Bunin, Szołochow i Sołżenicyn ją otrzymali.',
+  },
+
+  /* --- Liczby --- */
+  {
+    id: 'liczby-pierwsza',
+    label: 'Nie do podziału',
+    category: 'Liczby',
+    difficulty: 3,
+    text: 'Która z tych liczb jest liczbą pierwszą?',
+    answers: [
+      { text: '97', spoken: 'dziewięćdziesiąt siedem', correct: true },
+      { text: '91', spoken: 'dziewięćdziesiąt jeden', rival: true },
+      { text: '87', spoken: 'osiemdziesiąt siedem' },
+      { text: '51', spoken: 'pięćdziesiąt jeden' },
+    ],
+    note: 'Pozostałe tylko wyglądają na pierwsze: 91 to 7 razy 13, a 87 i 51 dzielą się przez 3.',
+  },
+  {
+    id: 'liczby-bilion',
+    label: 'Do potęgi',
     category: 'Liczby',
     difficulty: 5,
-    text: 'Ile wynosi dwa do potęgi dziesiątej?',
+    text: 'Ile zer ma bilion zapisany zgodnie z polskim nazewnictwem liczb?',
     answers: [
-      { text: '1024', correct: true },
-      { text: '1000' },
-      { text: '2048' },
-      { text: '512' },
+      { text: '12', spoken: 'dwanaście', correct: true },
+      { text: '9', spoken: 'dziewięć', rival: true },
+      { text: '15', spoken: 'piętnaście' },
+      { text: '18', spoken: 'osiemnaście' },
     ],
-    note: 'Dlatego kilobajt to przez lata było 1024 bajty, a nie równe tysiąc.',
+    note: 'W polskiej skali długiej bilion to milion milionów, a nie angielski „billion” z dziewięcioma zerami.',
+  },
+
+  /* --- Technologia --- */
+  {
+    id: 'tech-megabajt',
+    label: 'Okrągła liczba',
+    category: 'Technologia',
+    difficulty: 3,
+    text: 'W klasycznym, binarnym przeliczeniu jeden megabajt to:',
+    answers: [
+      { text: '1024 kilobajty', spoken: 'tysiąc dwadzieścia cztery kilobajty', correct: true },
+      { text: '1000 kilobajtów', spoken: 'tysiąc kilobajtów', rival: true },
+      { text: '512 kilobajtów', spoken: 'pięćset dwanaście kilobajtów' },
+      { text: '2048 kilobajtów', spoken: 'dwa tysiące czterdzieści osiem kilobajtów' },
+    ],
+    note: 'Komputery liczą potęgami dwójki, a dwa do dziesiątej to właśnie 1024 — okrągły tysiąc jest wygodnym przybliżeniem producentów dysków.',
+  },
+  {
+    id: 'tech-najstarszy-jezyk',
+    label: 'Języki programowania',
+    category: 'Technologia',
+    difficulty: 4,
+    text: 'Który z tych języków programowania powstał najwcześniej?',
+    answers: [
+      { text: 'Fortran', correct: true },
+      { text: 'COBOL', rival: true },
+      { text: 'Pascal' },
+      { text: 'C' },
+    ],
+    note: 'Fortran wyprzedził COBOL o dwa lata i oba są starsze od Pascala i C o całe pokolenie sprzętu.',
+  },
+  {
+    id: 'tech-java-firma',
+    label: 'Mała czarna',
+    category: 'Technologia',
+    difficulty: 5,
+    text: 'Język programowania Java powstał w firmie:',
+    answers: [
+      { text: 'Sun Microsystems', correct: true },
+      { text: 'Netscape', rival: true },
+      { text: 'Borland' },
+      { text: 'IBM' },
+    ],
+    note: 'Zespół Jamesa Goslinga stworzył Javę w Sun Microsystems, a Netscape odpowiada za mylnie kojarzony z nią JavaScript.',
   },
 ];
 
@@ -3174,6 +4132,7 @@ function burst(canvas, { count = 180, duration = 4200 } = {}) {
 
 
 
+
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const BEST_KEY = 'pnm.best';
 
@@ -3205,6 +4164,9 @@ const el = {
   btnStart: $('btn-start'),
   btnSound: $('btn-sound'),
   btnRules: $('btn-rules'),
+  btnVoice: $('btn-voice'),
+  voicePicker: $('voice-picker'),
+  voiceHint: $('voice-hint'),
   rulesDialog: $('rules-dialog'),
   btnRulesClose: $('btn-rules-close'),
 
@@ -3441,31 +4403,38 @@ function renderChoice() {
 
   later(() => {
     el.bumper.hidden = true;
-    const offer = offeredCategories(state);
+    const offer = offeredQuestions(state);
     el.choiceCards.innerHTML = '';
-    offer.forEach((category, i) => {
+    offer.forEach(({ id, label }, i) => {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'choice__card';
-      card.dataset.category = category;
+      card.dataset.id = id;
       card.style.setProperty('--i', String(i));
       card.innerHTML = `
-        <span class="choice__label">Kategoria ${i + 1}</span>
+        <span class="choice__label">Hasło ${i + 1}</span>
         <span class="choice__name"></span>
       `;
-      card.querySelector('.choice__name').textContent = category;
+      card.querySelector('.choice__name').textContent = label;
       el.choiceCards.append(card);
     });
     el.choice.hidden = false;
     el.choiceCards.querySelector('.choice__card')?.focus();
+    lektor.say([
+      { text: 'Dwa hasła.', pauseAfter: 500 },
+      ...offer.flatMap(({ label }, i) => [
+        { text: i === 0 ? `Pierwsze: ${label}.` : `Drugie: ${label}.`, pauseAfter: 450 },
+      ]),
+    ]);
   }, BEAT.bumper);
 }
 
-function pickCategory(category) {
+function pickOffer(id) {
   if (!state || state.status !== 'choosing') return;
   clearTimers();
+  lektor.stop();
   sfx.pick();
-  state = chooseCategory(state, category);
+  state = chooseOffer(state, id);
   renderQuestion();
 }
 
@@ -3478,7 +4447,7 @@ function renderQuestion() {
 
   el.choice.hidden = true;
   el.question.hidden = false;
-  el.category.textContent = question.category;
+  el.category.textContent = question.label ?? question.category;
   el.questionText.textContent = question.text;
   el.finalHint.hidden = !question.isFinal;
 
@@ -3492,6 +4461,12 @@ function renderQuestion() {
   el.waiting.hidden = true;
   renderStakes();
   startTimer();
+
+  lektor.say([
+    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 600 }] : []),
+    { text: question.spoken ?? question.text, rate: 0.93, pauseAfter: 700 },
+    ...answerLines(question),
+  ]);
 }
 
 function renderGrabs() {
@@ -3706,6 +4681,7 @@ function runNextStep() {
 function skipReveal() {
   if (!revealSteps.length) return;
   clearTimers();
+  lektor.stop();
   const rest = revealSteps;
   revealSteps = [];
   rest.forEach((step) => step.run());
@@ -3729,15 +4705,27 @@ function showRoundSummary() {
   el.revealDetail.textContent = parts.join(' ');
 
   const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
-  el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+  // dopiero teraz wychodzi na jaw, co się kryło za hasłem
+  const topic =
+    question.label && question.label !== question.category ? ` (${question.category})` : '';
+  el.revealNote.textContent =
+    `Poprawna odpowiedź${topic} — ${names}. ${question.note ?? ''}`.trim();
 
   el.btnNext.textContent = state.outcome === 'continue' ? 'Następna runda' : 'Podsumowanie';
   el.reveal.hidden = false;
   el.btnNext.focus();
+
+  const winner = question.answers[correct[0]];
+  lektor.say([
+    { text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
+    { text: `${winner.spoken ?? winner.text}.`, rate: 0.86, pitch: 0.94, pauseAfter: 500 },
+    { text: kept === 0 ? 'Wszystko przepadło.' : `Zostaje ${zl(kept)}.`, rate: 0.9 },
+  ]);
 }
 
 function goNext() {
   clearTimers();
+  lektor.stop();
   revealSteps = [];
   state = advance(state);
   if (state.status === 'over') showEnd();
@@ -3803,6 +4791,7 @@ function showEnd() {
 
 function startGame(seed) {
   clearTimers();
+  lektor.unlock(); // pierwsze `speak()` musi wyjść z gestu użytkownika
   revealSteps = [];
   if (stopConfetti) {
     stopConfetti();
@@ -3860,7 +4849,7 @@ function onKeyDown(event) {
     const cards = [...el.choiceCards.querySelectorAll('.choice__card')];
     if (digit >= 1 && digit <= cards.length) {
       event.preventDefault();
-      pickCategory(cards[digit - 1].dataset.category);
+      pickOffer(cards[digit - 1].dataset.id);
     }
     return;
   }
@@ -3901,6 +4890,57 @@ function onKeyDown(event) {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Lektor
+ * ------------------------------------------------------------------ */
+
+function syncVoiceButton() {
+  const on = lektor.isOn();
+  el.btnVoice.textContent = on ? '🗣 Lektor' : '🗣 Lektor wyłączony';
+  el.btnVoice.setAttribute('aria-pressed', String(on));
+}
+
+/**
+ * Lista głosów bywa pusta przy starcie i wypełnia się z opóźnieniem, dlatego
+ * odświeżamy ją po zakończeniu wykrywania, a nie przy rysowaniu okna zasad.
+ */
+async function setUpVoices() {
+  if (!lektor.isSupported()) {
+    el.voiceHint.textContent = 'Ta przeglądarka nie ma syntezatora mowy.';
+    return;
+  }
+  const { voices, voice, offlineSafe } = await lektor.init();
+
+  el.btnVoice.hidden = voices.length === 0;
+  el.voicePicker.innerHTML = '';
+  for (const item of voices) {
+    const option = document.createElement('option');
+    option.value = item.voiceURI || item.name;
+    option.textContent = `${item.name}${item.localService ? '' : ' (przez sieć)'}`;
+    option.selected = item === voice;
+    el.voicePicker.append(option);
+  }
+
+  if (!voices.length) {
+    el.voiceHint.textContent =
+      'Nie znaleziono polskiego głosu. Windows: doinstaluj pakiet języka polskiego z mową. ' +
+      'macOS: Ustawienia → Dostępność → Treść mówiona → głos Zosia. Android: pakiet offline Google.';
+  } else if (!offlineSafe) {
+    el.voiceHint.textContent = 'Wybrany głos działa przez sieć — bez internetu zamilknie.';
+  } else {
+    el.voiceHint.textContent = '';
+  }
+  syncVoiceButton();
+}
+
+/** Litera pola plus treść odpowiedzi — tak, jak czyta je prowadzący. */
+function answerLines(question) {
+  return question.answers.map((answer, i) => ({
+    text: `${LETTERS[i]}. ${answer.spoken ?? answer.text}`,
+    pauseAfter: 220,
+  }));
+}
+
 function syncSoundButton() {
   const on = isSoundOn();
   el.btnSound.textContent = on ? '🔊 Dźwięk' : '🔇 Cisza';
@@ -3913,7 +4953,7 @@ function syncSoundButton() {
 
 el.choiceCards.addEventListener('click', (event) => {
   const card = event.target.closest('.choice__card');
-  if (card) pickCategory(card.dataset.category);
+  if (card) pickOffer(card.dataset.id);
 });
 el.lanes.addEventListener('click', onLaneClick);
 el.grabs.addEventListener('click', onGrabClick);
@@ -3938,6 +4978,7 @@ el.seedInput.addEventListener('keydown', (e) => {
 el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
   clearTimers();
+  lektor.stop();
   revealSteps = [];
   if (stopConfetti) stopConfetti();
   stopTimer();
@@ -3948,6 +4989,16 @@ el.btnHome.addEventListener('click', () => {
 el.btnSound.addEventListener('click', () => {
   toggleSound();
   syncSoundButton();
+});
+el.btnVoice.addEventListener('click', () => {
+  lektor.unlock();
+  const on = lektor.toggle();
+  syncVoiceButton();
+  if (on) lektor.say('Lektor włączony.');
+});
+el.voicePicker.addEventListener('change', () => {
+  lektor.unlock();
+  if (lektor.setVoice(el.voicePicker.value)) lektor.say('Tak brzmi ten głos.');
 });
 el.btnRules.addEventListener('click', () => el.rulesDialog.showModal());
 el.btnRulesClose.addEventListener('click', () => el.rulesDialog.close());
@@ -3976,6 +5027,7 @@ document.addEventListener('visibilitychange', () => {
 const seedFromUrl = new URLSearchParams(location.search).get('kod');
 if (seedFromUrl) el.seedInput.value = seedFromUrl;
 syncSoundButton();
+setUpVoices();
 refreshBestLabel();
 showScreen('start');
 
@@ -3985,6 +5037,7 @@ window.__pnm = {
     return state;
   },
   skipReveal,
+  lektor,
 };
 })();
 </script>

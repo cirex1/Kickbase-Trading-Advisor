@@ -39,6 +39,9 @@
 
         <div class="topbar__actions">
           <button id="btn-rules" class="btn btn--ghost" type="button">Zasady</button>
+          <button id="btn-voice" class="btn btn--ghost" type="button" aria-pressed="false" hidden>
+            🗣 Lektor
+          </button>
           <button id="btn-sound" class="btn btn--ghost" type="button" aria-pressed="true">🔊 Dźwięk</button>
         </div>
       </header>
@@ -67,7 +70,7 @@
           </p>
 
           <ol class="steps">
-            <li><strong>Wybierz</strong> jedną z dwóch kategorii.</li>
+            <li><strong>Wybierz</strong> jedno z dwóch haseł — tematu nie zdradzają.</li>
             <li><strong>Rozłóż</strong> wszystkie paczki, ale jedno pole zostaw puste.</li>
             <li><strong>Zabierz</strong> to, co nie spadło — i graj dalej.</li>
           </ol>
@@ -109,7 +112,7 @@
 
         <!-- Wybór kategorii — zajmuje miejsce pytania, zanim ono padnie -->
         <div id="choice" class="choice" hidden>
-          <p class="choice__eyebrow">Wybierz kategorię</p>
+          <p class="choice__eyebrow">Wybierz hasło — co się za nim kryje, okaże się za chwilę</p>
           <div id="choice-cards" class="choice__cards"></div>
         </div>
 
@@ -135,14 +138,18 @@
         <!-- Taca i podsumowanie dzielą to samo miejsce, żeby scena nie skakała. -->
         <div class="bottombar">
           <div id="reveal" class="reveal" hidden>
-            <p id="reveal-headline" class="reveal__headline"></p>
+            <p id="reveal-headline" class="reveal__headline" role="status"></p>
             <p id="reveal-detail" class="reveal__detail"></p>
             <p id="reveal-note" class="reveal__note"></p>
             <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
           </div>
 
+          <!-- role="status" — czytnik ekranu ma zapowiadać każdą otwartą
+               zapadnię; bez tego cała ta scena jest dla niego niema. -->
           <div id="waiting" class="waiting" hidden>
-            <p id="waiting-text" class="waiting__text">Zapadnie otwierają się…</p>
+            <p id="waiting-text" class="waiting__text" role="status" aria-live="polite">
+              Zapadnie otwierają się…
+            </p>
             <button id="btn-skip" class="btn btn--ghost btn--sm" type="button">Pokaż wynik</button>
           </div>
 
@@ -196,8 +203,8 @@
       <ul>
         <li>Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.</li>
         <li>
-          Przed każdym pytaniem dostajesz <strong>dwie kategorie</strong> do wyboru. Pytanie pada
-          dopiero po wyborze.
+          Przed każdym pytaniem dostajesz <strong>dwa hasła</strong> do wyboru. Nazwa niczego nie
+          zdradza — sens rozumie się dopiero po pytaniu. Wybierasz w ciemno.
         </li>
         <li>
           Pod każdą odpowiedzią jest <strong>zapadnia</strong>. Kładziesz na nich wszystkie paczki:
@@ -220,6 +227,17 @@
         </li>
         <li>Kiedy w grze zostanie 0 zł — koniec.</li>
       </ul>
+      <h3>Lektor</h3>
+      <p class="rules__lead">
+        Gra może czytać hasła i pytania na głos. Korzysta z głosów zainstalowanych w systemie,
+        więc nic nie pobiera — ale i nie na każdym komputerze taki głos jest.
+      </p>
+      <label class="rules__voice">
+        <span>Głos</span>
+        <select id="voice-picker"></select>
+      </label>
+      <p id="voice-hint" class="rules__hint"></p>
+
       <h3>Skróty klawiszowe</h3>
       <ul class="rules__keys">
         <li><kbd>1</kbd>–<kbd>4</kbd> ile paczek brać naraz</li>

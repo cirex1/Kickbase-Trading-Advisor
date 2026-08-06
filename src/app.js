@@ -19,12 +19,12 @@ import {
   advance,
   canLock,
   canPlaceOn,
-  chooseCategory,
+  chooseOffer,
   clearBets,
   createGame,
   currentQuestion,
   doorsInRound,
-  offeredCategories,
+  offeredQuestions,
   placeBundles,
   placeRest,
   resolve,
@@ -39,6 +39,7 @@ import { QUESTIONS } from './questions.js';
 import { isSoundOn, sfx, toggleSound } from './audio.js';
 import { burst } from './confetti.js';
 import { readSetting, writeSetting } from './storage.js';
+import * as lektor from './speech.js';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const BEST_KEY = 'pnm.best';
@@ -71,6 +72,9 @@ const el = {
   btnStart: $('btn-start'),
   btnSound: $('btn-sound'),
   btnRules: $('btn-rules'),
+  btnVoice: $('btn-voice'),
+  voicePicker: $('voice-picker'),
+  voiceHint: $('voice-hint'),
   rulesDialog: $('rules-dialog'),
   btnRulesClose: $('btn-rules-close'),
 
@@ -307,31 +311,38 @@ function renderChoice() {
 
   later(() => {
     el.bumper.hidden = true;
-    const offer = offeredCategories(state);
+    const offer = offeredQuestions(state);
     el.choiceCards.innerHTML = '';
-    offer.forEach((category, i) => {
+    offer.forEach(({ id, label }, i) => {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'choice__card';
-      card.dataset.category = category;
+      card.dataset.id = id;
       card.style.setProperty('--i', String(i));
       card.innerHTML = `
-        <span class="choice__label">Kategoria ${i + 1}</span>
+        <span class="choice__label">Hasło ${i + 1}</span>
         <span class="choice__name"></span>
       `;
-      card.querySelector('.choice__name').textContent = category;
+      card.querySelector('.choice__name').textContent = label;
       el.choiceCards.append(card);
     });
     el.choice.hidden = false;
     el.choiceCards.querySelector('.choice__card')?.focus();
+    lektor.say([
+      { text: 'Dwa hasła.', pauseAfter: 500 },
+      ...offer.flatMap(({ label }, i) => [
+        { text: i === 0 ? `Pierwsze: ${label}.` : `Drugie: ${label}.`, pauseAfter: 450 },
+      ]),
+    ]);
   }, BEAT.bumper);
 }
 
-function pickCategory(category) {
+function pickOffer(id) {
   if (!state || state.status !== 'choosing') return;
   clearTimers();
+  lektor.stop();
   sfx.pick();
-  state = chooseCategory(state, category);
+  state = chooseOffer(state, id);
   renderQuestion();
 }
 
@@ -344,7 +355,7 @@ function renderQuestion() {
 
   el.choice.hidden = true;
   el.question.hidden = false;
-  el.category.textContent = question.category;
+  el.category.textContent = question.label ?? question.category;
   el.questionText.textContent = question.text;
   el.finalHint.hidden = !question.isFinal;
 
@@ -358,6 +369,12 @@ function renderQuestion() {
   el.waiting.hidden = true;
   renderStakes();
   startTimer();
+
+  lektor.say([
+    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 600 }] : []),
+    { text: question.spoken ?? question.text, rate: 0.93, pauseAfter: 700 },
+    ...answerLines(question),
+  ]);
 }
 
 function renderGrabs() {
@@ -572,6 +589,7 @@ function runNextStep() {
 function skipReveal() {
   if (!revealSteps.length) return;
   clearTimers();
+  lektor.stop();
   const rest = revealSteps;
   revealSteps = [];
   rest.forEach((step) => step.run());
@@ -595,15 +613,27 @@ function showRoundSummary() {
   el.revealDetail.textContent = parts.join(' ');
 
   const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
-  el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+  // dopiero teraz wychodzi na jaw, co się kryło za hasłem
+  const topic =
+    question.label && question.label !== question.category ? ` (${question.category})` : '';
+  el.revealNote.textContent =
+    `Poprawna odpowiedź${topic} — ${names}. ${question.note ?? ''}`.trim();
 
   el.btnNext.textContent = state.outcome === 'continue' ? 'Następna runda' : 'Podsumowanie';
   el.reveal.hidden = false;
   el.btnNext.focus();
+
+  const winner = question.answers[correct[0]];
+  lektor.say([
+    { text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
+    { text: `${winner.spoken ?? winner.text}.`, rate: 0.86, pitch: 0.94, pauseAfter: 500 },
+    { text: kept === 0 ? 'Wszystko przepadło.' : `Zostaje ${zl(kept)}.`, rate: 0.9 },
+  ]);
 }
 
 function goNext() {
   clearTimers();
+  lektor.stop();
   revealSteps = [];
   state = advance(state);
   if (state.status === 'over') showEnd();
@@ -669,6 +699,7 @@ function showEnd() {
 
 function startGame(seed) {
   clearTimers();
+  lektor.unlock(); // pierwsze `speak()` musi wyjść z gestu użytkownika
   revealSteps = [];
   if (stopConfetti) {
     stopConfetti();
@@ -726,7 +757,7 @@ function onKeyDown(event) {
     const cards = [...el.choiceCards.querySelectorAll('.choice__card')];
     if (digit >= 1 && digit <= cards.length) {
       event.preventDefault();
-      pickCategory(cards[digit - 1].dataset.category);
+      pickOffer(cards[digit - 1].dataset.id);
     }
     return;
   }
@@ -767,6 +798,57 @@ function onKeyDown(event) {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Lektor
+ * ------------------------------------------------------------------ */
+
+function syncVoiceButton() {
+  const on = lektor.isOn();
+  el.btnVoice.textContent = on ? '🗣 Lektor' : '🗣 Lektor wyłączony';
+  el.btnVoice.setAttribute('aria-pressed', String(on));
+}
+
+/**
+ * Lista głosów bywa pusta przy starcie i wypełnia się z opóźnieniem, dlatego
+ * odświeżamy ją po zakończeniu wykrywania, a nie przy rysowaniu okna zasad.
+ */
+async function setUpVoices() {
+  if (!lektor.isSupported()) {
+    el.voiceHint.textContent = 'Ta przeglądarka nie ma syntezatora mowy.';
+    return;
+  }
+  const { voices, voice, offlineSafe } = await lektor.init();
+
+  el.btnVoice.hidden = voices.length === 0;
+  el.voicePicker.innerHTML = '';
+  for (const item of voices) {
+    const option = document.createElement('option');
+    option.value = item.voiceURI || item.name;
+    option.textContent = `${item.name}${item.localService ? '' : ' (przez sieć)'}`;
+    option.selected = item === voice;
+    el.voicePicker.append(option);
+  }
+
+  if (!voices.length) {
+    el.voiceHint.textContent =
+      'Nie znaleziono polskiego głosu. Windows: doinstaluj pakiet języka polskiego z mową. ' +
+      'macOS: Ustawienia → Dostępność → Treść mówiona → głos Zosia. Android: pakiet offline Google.';
+  } else if (!offlineSafe) {
+    el.voiceHint.textContent = 'Wybrany głos działa przez sieć — bez internetu zamilknie.';
+  } else {
+    el.voiceHint.textContent = '';
+  }
+  syncVoiceButton();
+}
+
+/** Litera pola plus treść odpowiedzi — tak, jak czyta je prowadzący. */
+function answerLines(question) {
+  return question.answers.map((answer, i) => ({
+    text: `${LETTERS[i]}. ${answer.spoken ?? answer.text}`,
+    pauseAfter: 220,
+  }));
+}
+
 function syncSoundButton() {
   const on = isSoundOn();
   el.btnSound.textContent = on ? '🔊 Dźwięk' : '🔇 Cisza';
@@ -779,7 +861,7 @@ function syncSoundButton() {
 
 el.choiceCards.addEventListener('click', (event) => {
   const card = event.target.closest('.choice__card');
-  if (card) pickCategory(card.dataset.category);
+  if (card) pickOffer(card.dataset.id);
 });
 el.lanes.addEventListener('click', onLaneClick);
 el.grabs.addEventListener('click', onGrabClick);
@@ -804,6 +886,7 @@ el.seedInput.addEventListener('keydown', (e) => {
 el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
   clearTimers();
+  lektor.stop();
   revealSteps = [];
   if (stopConfetti) stopConfetti();
   stopTimer();
@@ -814,6 +897,16 @@ el.btnHome.addEventListener('click', () => {
 el.btnSound.addEventListener('click', () => {
   toggleSound();
   syncSoundButton();
+});
+el.btnVoice.addEventListener('click', () => {
+  lektor.unlock();
+  const on = lektor.toggle();
+  syncVoiceButton();
+  if (on) lektor.say('Lektor włączony.');
+});
+el.voicePicker.addEventListener('change', () => {
+  lektor.unlock();
+  if (lektor.setVoice(el.voicePicker.value)) lektor.say('Tak brzmi ten głos.');
 });
 el.btnRules.addEventListener('click', () => el.rulesDialog.showModal());
 el.btnRulesClose.addEventListener('click', () => el.rulesDialog.close());
@@ -842,6 +935,7 @@ document.addEventListener('visibilitychange', () => {
 const seedFromUrl = new URLSearchParams(location.search).get('kod');
 if (seedFromUrl) el.seedInput.value = seedFromUrl;
 syncSoundButton();
+setUpVoices();
 refreshBestLabel();
 showScreen('start');
 
@@ -851,4 +945,5 @@ window.__pnm = {
     return state;
   },
   skipReveal,
+  lektor,
 };
