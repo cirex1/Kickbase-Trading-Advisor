@@ -53,6 +53,52 @@ Das Skript `tools/build-single.mjs` fügt Stylesheet und Module in `index.html` 
 schreibt `dist/postaw-na-milion.html`. Es ist Bequemlichkeit, keine Voraussetzung: Bearbeitet
 werden weiterhin die Dateien in `src/`.
 
+## Vorlesestimme
+
+Das Spiel liest Hasła, Fragen und Auflösungen vor. Zwei Stufen, beide offline:
+
+**Ohne alles** nutzt es die Stimmen des Betriebssystems (`src/speech.js`). Kostet nichts,
+braucht keine Dateien — aber die Qualität hängt am Gerät, und auf einem System ohne
+polnisches Sprachpaket gibt es gar keine Stimme. Dann bleibt der Lektor-Knopf ausgeblendet.
+
+**Mit Sprachpaket** klingt es nach Sendung. `tools/voice-build.mjs` nimmt alle Zeilen einmal
+auf und legt sie als `assets/voice/pack.js` ab; danach ist nichts mehr nachzuladen.
+
+### Den API-Schlüssel hinterlegen
+
+Der Schlüssel gehört **nie ins Repository**. Zwei Wege:
+
+```bash
+# einmalig für einen Lauf
+ELEVENLABS_API_KEY=sk_... node tools/voice-build.mjs
+
+# oder dauerhaft in einer ignorierten .env (Vorlage: .env.example)
+cp .env.example .env        # Schlüssel eintragen
+node --env-file=.env tools/voice-build.mjs
+```
+
+`.env` steht in `.gitignore`. Unter Windows PowerShell entspricht der erste Weg
+`$env:ELEVENLABS_API_KEY="sk_..."` vor dem Aufruf.
+
+**Erst probehören, dann alles aufnehmen:**
+
+```bash
+node --env-file=.env tools/voice-build.mjs --limit 5
+```
+
+Das nimmt fünf Zeilen auf und kostet fast nichts. Passt die Stimme, lass den Lauf ohne
+`--limit` durch — fertige Zeilen liegen in `.voice-cache/` und werden nicht doppelt bezahlt.
+
+### Die drei Wege
+
+| Weg | Kosten | Befehl |
+| --- | --- | --- |
+| ElevenLabs | einmalig ~12 500 Zeichen | `node --env-file=.env tools/voice-build.mjs` |
+| Piper, lokal | gratis | `node tools/voice-build.mjs --engine piper --piper-model pl_PL-gosia-medium.onnx` |
+| woanders aufgenommen | — | `--manifest kwestie.csv`, dann `--from ./nagrania` |
+
+Alle drei enden bei derselben Datei. Credits fallen **nur beim Aufnehmen** an, nie beim Spielen.
+
 ## Tests
 
 Die Spiellogik in `src/engine.js` ist frei von DOM-Zugriffen und wird direkt in Node getestet —

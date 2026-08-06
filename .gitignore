@@ -9,3 +9,6 @@ Thumbs.db
 # wersja pod Artifacts, składana na żądanie
 dist/fragment.html
 .voice-cache/
+
+# klucze API — nigdy do repozytorium
+.env
