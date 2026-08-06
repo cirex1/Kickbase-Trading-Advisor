@@ -1,0 +1,70 @@
+POSTAW NA MILION
+================
+
+Zwei Dinge liegen in diesem Ordner:
+das fertige Spiel, und ein Helfer für die Sprecherstimme.
+
+
+1. SPIELEN — geht sofort
+------------------------
+
+    dist/postaw-na-milion.html   →   doppelklicken
+
+Fertig. Kein Server, kein Internet nötig. Das Spiel spricht bereits — mit
+der Stimme, die dein Betriebssystem mitbringt.
+
+Wenn oben rechts KEIN Knopf "Lektor" auftaucht, hat dein Computer keine
+polnische Stimme installiert. Dann bleibt das Spiel stumm, funktioniert
+aber ganz normal. Nachrüsten geht so:
+
+  Windows  Einstellungen → Zeit und Sprache → Sprache → Sprache hinzufügen
+           → Polnisch → beim Installieren "Sprachausgabe" ankreuzen
+  Mac      Systemeinstellungen → Bedienungshilfen → Gesprochene Inhalte
+           → Systemstimme → Anpassen → Polnisch → "Zosia" laden
+
+
+2. BESSERE STIMME — optional, dauert eine Kaffeepause
+-----------------------------------------------------
+
+Nur wenn du willst. Das Spiel funktioniert auch ohne.
+
+  Schritt 1   Node.js installieren, falls noch nicht vorhanden:
+              https://nodejs.org  (die linke, grüne Schaltfläche)
+              Alles durchklicken, nichts umstellen.
+
+  Schritt 2   Doppelklick auf:
+                Windows →  Nagraj lektora (Windows).bat
+                Mac     →  Nagraj lektora (Mac).command
+
+              Beim Mac meldet sich beim ersten Mal die Sicherheitsabfrage.
+              Dann: Rechtsklick auf die Datei → "Öffnen" → "Öffnen".
+
+  Schritt 3   Der Helfer fragt einmal nach deinem ElevenLabs-Schlüssel.
+              Einfügen, Enter. Er wird lokal gespeichert und nie wieder
+              abgefragt.
+
+  Schritt 4   Er nimmt zuerst NUR FÜNF Sätze auf und fragt dann nach.
+              Hör sie dir an (Ordner .voice-cache) und entscheide.
+              Erst wenn du "j" tippst, laufen die restlichen 612.
+
+Abbrechen ist immer erlaubt. Beim nächsten Start macht er dort weiter, wo
+er aufgehört hat — nichts wird doppelt bezahlt.
+
+Am Ende entsteht:  assets/voice/pack.js
+Diese eine Datei bitte an Claude schicken, dann wird sie ins Spiel eingebaut.
+
+
+WICHTIG ZUM SCHLÜSSEL
+---------------------
+
+Der Schlüssel landet in einer Datei namens .env in diesem Ordner.
+Die ist absichtlich vom Versand ausgeschlossen. Schick sie niemandem,
+auch nicht mir. Ich brauche nur pack.js.
+
+
+WAS KOSTET DAS
+--------------
+
+Nur die Aufnahme, ein einziges Mal: rund 12 500 Zeichen für alle 617 Sätze.
+Beim Spielen entstehen nie wieder Kosten — die Stimme steckt dann in der
+Datei und funktioniert auch ohne Internet.
