@@ -5,3 +5,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.local
+
+# wersja pod Artifacts, składana na żądanie
+dist/fragment.html

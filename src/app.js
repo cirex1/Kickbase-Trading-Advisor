@@ -32,6 +32,7 @@ import {
 import { QUESTIONS } from './questions.js';
 import { isSoundOn, sfx, toggleSound } from './audio.js';
 import { burst } from './confetti.js';
+import { readSetting, writeSetting } from './storage.js';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const BEST_KEY = 'pnm.best';
@@ -147,7 +148,7 @@ function animateMoney(node, from, to, duration = 900) {
 }
 
 function readBest() {
-  const raw = Number(localStorage.getItem(BEST_KEY));
+  const raw = Number(readSetting(BEST_KEY, 0));
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
@@ -451,7 +452,7 @@ function showEnd() {
   const won = state.balance > 0;
   const jackpot = state.balance >= START_BALANCE;
 
-  if (state.balance > readBest()) localStorage.setItem(BEST_KEY, String(state.balance));
+  if (state.balance > readBest()) writeSetting(BEST_KEY, state.balance);
   refreshBestLabel();
 
   el.endEyebrow.textContent = jackpot

@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
-    "start": "python3 -m http.server 8080"
+    "start": "python3 -m http.server 8080",
+    "build": "node tools/build-single.mjs"
   },
   "keywords": ["gra", "teleturniej", "quiz", "postaw-na-milion"],
   "license": "MIT"

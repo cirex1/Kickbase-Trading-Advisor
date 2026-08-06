@@ -1,0 +1,3238 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Postaw na milion</title>
+    <meta
+      name="description"
+      content="Teleturniej „Postaw na milion” jako gra przeglądarkowa. Milion złotych w paczkach, osiem pytań i zapadnie, które otwierają się pod błędnymi odpowiedziami."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07061a" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0a1f'/%3E%3Crect x='4' y='9' width='24' height='7' rx='1.5' fill='%23ffc247'/%3E%3Crect x='6' y='17' width='20' height='5' rx='1' fill='%23ff9d1e'/%3E%3Cpath d='M3 25h26' stroke='%23ffc247' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+/* ==========================================================================
+   Postaw na milion — style
+   Studio teleturnieju: ciemna hala, świecąca podłoga, złote paczki banknotów.
+   ========================================================================== */
+
+:root {
+  --bg: #05040f;
+  --bg-2: #0f0926;
+  --ink: #f4f1ff;
+  --ink-dim: #a89fd0;
+  --line: rgba(255, 255, 255, 0.12);
+  --panel: rgba(20, 14, 52, 0.72);
+  --panel-solid: #150e35;
+
+  --gold: #ffc247;
+  --gold-2: #ff9d1e;
+  --gold-ink: #2a1c00;
+  --good: #34e2a0;
+  --bad: #ff5f7a;
+
+  /* zapadnie */
+  --steel: #2b2c46;
+  --steel-2: #1a1b30;
+  --steel-edge: #4d4f74;
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --ring-shadow: 0 0 0 3px rgba(255, 194, 71, 0.35);
+
+  --step-0: clamp(0.9rem, 0.86rem + 0.2vw, 1rem);
+  --step-1: clamp(1.05rem, 0.98rem + 0.35vw, 1.25rem);
+  --step-2: clamp(1.25rem, 1.05rem + 0.9vw, 1.85rem);
+  --step-3: clamp(1.8rem, 1.3rem + 2.2vw, 3rem);
+  --step-4: clamp(2.4rem, 1.5rem + 4vw, 4.5rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Wiele bloków niżej ustawia display: grid/flex, co samo z siebie
+   unieważniłoby atrybut [hidden]. Stąd jawna reguła. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 70% at 50% -5%, #3a1b6b 0%, transparent 58%),
+    radial-gradient(70% 45% at 12% 92%, #0d3b63 0%, transparent 60%),
+    radial-gradient(70% 45% at 92% 96%, #55163c 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 45%, var(--bg) 100%);
+}
+
+.backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.035) 0 2px,
+    transparent 2px 9px
+  );
+  mask-image: radial-gradient(80% 60% at 50% 0%, #000 0%, transparent 75%);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------- */
+/* Układ                                                                 */
+/* --------------------------------------------------------------------- */
+
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(0.7rem, 2vw, 1.4rem);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.7rem, 1.6vw, 1.1rem);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.logo {
+  margin: 0;
+  font-size: var(--step-1);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.logo span {
+  background: linear-gradient(180deg, #fff6d8, var(--gold) 45%, var(--gold-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 26px rgba(255, 178, 46, 0.35);
+}
+
+.topbar__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.screen {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: clamp(0.7rem, 1.6vw, 1.1rem);
+  animation: fade-in 0.35s ease both;
+}
+
+.screen.is-active {
+  display: flex;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  padding: clamp(1.2rem, 3vw, 2.4rem);
+}
+
+/* --------------------------------------------------------------------- */
+/* Przyciski                                                             */
+/* --------------------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible,
+.grab:focus-visible,
+.lane__hit:focus-visible,
+.lane__minus:focus-visible,
+input:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-shadow);
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--gold {
+  background: linear-gradient(180deg, #ffdf8c, var(--gold) 45%, var(--gold-2));
+  color: var(--gold-ink);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 26px rgba(255, 158, 30, 0.28);
+}
+
+.btn--gold:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff0bd, #ffcb63 45%, #ffab34);
+}
+
+.btn--xl {
+  font-size: var(--step-1);
+  padding: 0.9rem 2.4rem;
+  letter-spacing: 0.04em;
+}
+
+/* --------------------------------------------------------------------- */
+/* Ekran startowy                                                        */
+/* --------------------------------------------------------------------- */
+
+.panel--intro {
+  margin: auto;
+  width: min(100%, 720px);
+  text-align: center;
+}
+
+.intro__eyebrow {
+  margin: 0;
+  color: var(--gold);
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.intro__title {
+  margin: 0.35rem 0 0.8rem;
+  font-size: var(--step-3);
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.intro__lead {
+  margin: 0 auto;
+  max-width: 48ch;
+  color: var(--ink-dim);
+}
+
+.steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.6rem auto;
+  padding: 0;
+  max-width: 36rem;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 0.55rem 0.9rem 0.55rem 2.9rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+}
+
+.steps li strong {
+  color: var(--ink);
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  translate: 0 -50%;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffdf8c, var(--gold-2));
+  color: var(--gold-ink);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.start-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.seed {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+.seed input {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  width: 10rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.best {
+  margin: 1.4rem 0 0;
+  color: var(--gold);
+  font-size: 0.9rem;
+}
+
+/* --------------------------------------------------------------------- */
+/* HUD                                                                   */
+/* --------------------------------------------------------------------- */
+
+.hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem clamp(0.8rem, 2vw, 1.4rem);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+}
+
+.hud__cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.hud__cell--bank {
+  align-items: center;
+  text-align: center;
+}
+
+.hud__cell--timer {
+  position: relative;
+  justify-self: end;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+}
+
+.hud__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.hud__value {
+  font-size: var(--step-1);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__value--money {
+  font-size: var(--step-2);
+  background: linear-gradient(180deg, #fff6d8, var(--gold) 55%, var(--gold-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.ring__bg,
+.ring__fg {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.ring__bg {
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.ring__fg {
+  stroke: var(--gold);
+  transition: stroke 0.3s ease;
+}
+
+.ring__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.hud__cell--timer.is-urgent .ring__fg {
+  stroke: var(--bad);
+}
+
+.hud__cell--timer.is-urgent .ring__value {
+  color: var(--bad);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(1.16);
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Pytanie                                                               */
+/* --------------------------------------------------------------------- */
+
+.question {
+  text-align: center;
+  margin-top: auto;
+}
+
+.question__category {
+  display: inline-block;
+  padding: 0.15rem 0.85rem;
+  border: 1px solid rgba(255, 194, 71, 0.4);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.question__text {
+  margin: 0.5rem auto 0;
+  max-width: 40ch;
+  font-size: var(--step-2);
+  line-height: 1.25;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.question__final {
+  margin: 0.5rem 0 0;
+  color: var(--bad);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ===================================================================== */
+/* SCENA — zapadnie                                                      */
+/* ===================================================================== */
+
+/* Stała wysokość, a nie flex — inaczej scena skakałaby w chwili, w której
+   taca ustępuje miejsca podsumowaniu rundy. */
+.stage {
+  position: relative;
+  flex: none;
+  height: clamp(330px, 44vh, 400px);
+  margin-bottom: auto;
+  perspective: 1100px;
+  perspective-origin: 50% 22%;
+  overflow: hidden;
+  --gap: clamp(0.5rem, 1.4vw, 0.9rem);
+  --floor-h: 190px;
+  /* wolna przestrzeń pod zapadniami — tam leci przegrana */
+  --pit-h: clamp(90px, 13vh, 130px);
+}
+
+/* Ciemność pod podłogą. */
+.stage__void {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 0;
+  height: calc(var(--pit-h) + 70px);
+  background:
+    radial-gradient(55% 100% at 50% 100%, rgba(120, 60, 200, 0.22), transparent 72%),
+    linear-gradient(180deg, transparent, #01000a 72%);
+}
+
+/* Mgła nad samym dnem — paczki rozpływają się w ciemności, zamiast urywać
+   się na krawędzi sceny. */
+.stage::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--pit-h);
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(1, 0, 8, 0.75) 55%, #01000a 95%);
+}
+
+/* --- warstwa 1: podłoga z zapadniami, odchylona w 3D ------------------ */
+
+.floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--pit-h);
+  height: var(--floor-h);
+  display: grid;
+  grid-template-columns: repeat(var(--doors, 4), 1fr);
+  gap: var(--gap);
+  transform: rotateX(66deg);
+  transform-origin: bottom center;
+  transform-style: preserve-3d;
+  /* materiał podestu widoczny w szczelinach między zapadniami */
+  background: linear-gradient(180deg, #26273f, #101122);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Rozświetlona krawędź podestu od strony widza — bez niej podłoga urywa się
+   płasko i przestaje wyglądać na wzniesioną. */
+.floor::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.32) 12%,
+    rgba(255, 255, 255, 0.32) 88%,
+    transparent
+  );
+}
+
+.trap {
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+/* Otwór: to widać, gdy skrzydła się rozchylą. */
+.trap__pit {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: radial-gradient(120% 90% at 50% 0%, #150b2c 0%, #000 70%);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.9);
+}
+
+/* Dwa skrzydła zawiasowane na zewnętrznych krawędziach.
+   Wewnątrz obróconej podłogi lokalna oś Y biegnie „w głąb”, więc rotateY
+   odchyla skrzydło w dół, dokładnie jak zapadnia w studiu. */
+.trap__flap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 40%),
+    linear-gradient(90deg, var(--steel-2), var(--steel) 45%, var(--steel-2));
+  border: 1px solid var(--steel-edge);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.55);
+  backface-visibility: hidden;
+  transition:
+    transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4),
+    border-color 0.3s ease,
+    background 0.3s ease;
+}
+
+.trap__flap--l {
+  left: 0;
+  border-radius: 4px 0 0 4px;
+  transform-origin: left center;
+}
+
+.trap__flap--r {
+  right: 0;
+  border-radius: 0 4px 4px 0;
+  transform-origin: right center;
+}
+
+/* Szczelina po środku — zdradza, że to dwa skrzydła. */
+.trap__flap--l::after,
+.trap__flap--r::after {
+  content: '';
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.trap__flap--l::after {
+  right: 0;
+}
+
+.trap__flap--r::after {
+  left: 0;
+}
+
+.trap.is-open .trap__flap--l {
+  transform: rotateY(-104deg);
+}
+
+.trap.is-open .trap__flap--r {
+  transform: rotateY(104deg);
+}
+
+.trap.is-safe .trap__flap {
+  border-color: var(--good);
+  background:
+    linear-gradient(180deg, rgba(52, 226, 160, 0.35), transparent 45%),
+    linear-gradient(90deg, #16352c, #1e5a45 45%, #16352c);
+}
+
+/* --- warstwa 2: ekrany z odpowiedziami i stosy paczek ----------------- */
+
+/* Trzy wiersze: ekran, kwota, stos. Kafelki dziedziczą je przez subgrid,
+   dzięki czemu kwoty i stosy stoją równo także wtedy, gdy jedna odpowiedź
+   jest jednowyrazowa, a druga zajmuje trzy linijki. */
+.lanes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--doors, 4), 1fr);
+  grid-template-rows: auto auto 1fr;
+  column-gap: var(--gap);
+  row-gap: 0;
+}
+
+.lane {
+  position: relative;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  justify-items: center;
+}
+
+.lane__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lane__hit:hover:not(:disabled) {
+  background: rgba(255, 194, 71, 0.07);
+}
+
+.lane__hit:disabled {
+  cursor: not-allowed;
+}
+
+/* Ekran nad zapadnią — jak monitor w studiu. */
+.lane__panel {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  width: 100%;
+  min-height: 4.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(46, 32, 94, 0.85), rgba(14, 9, 34, 0.85));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    opacity 0.3s ease;
+}
+
+.lane__letter {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.lane__text {
+  font-size: clamp(0.78rem, 0.6rem + 0.55vw, 1.02rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.lane__amount {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  margin-top: 0.45rem;
+  min-height: 1.2rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(255, 194, 71, 0.5);
+}
+
+.lane__minus {
+  position: absolute;
+  z-index: 3;
+  /* wewnątrz kafelka — inaczej skrajną kolumnę przycięłaby krawędź sceny */
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 194, 71, 0.5);
+  background: #180f36;
+  color: var(--gold);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.lane.has-money .lane__minus {
+  opacity: 1;
+}
+
+.lane__minus:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--bad);
+}
+
+.lane__minus:disabled {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.lane.has-money .lane__panel {
+  border-color: rgba(255, 194, 71, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 24px rgba(255, 194, 71, 0.22);
+}
+
+.lane.is-blocked .lane__panel {
+  opacity: 0.55;
+}
+
+.lane.is-bumped .lane__amount {
+  animation: bump 0.25s ease;
+}
+
+@keyframes bump {
+  40% {
+    transform: scale(1.18);
+  }
+}
+
+/* --- stos paczek ------------------------------------------------------ */
+
+.lane__stack {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  align-self: end;
+  /* stos ma stać na zapadni, a nie na dnie sceny */
+  margin-bottom: calc(var(--pit-h) + var(--floor-h) * 0.19);
+  width: min(78%, 92px);
+  height: 118px;
+  /* wysokość najwyższego stosu (40 paczek) — czyta ją renderStack w app.js,
+     żeby CSS pozostał jedynym miejscem, gdzie ustala się rozmiary sceny */
+  --stack-max: 104px;
+}
+
+.bundle {
+  position: absolute;
+  left: 50%;
+  width: 100%;
+  height: 9px;
+  border-radius: 2px;
+  transform: translateX(-50%) translateX(var(--x, 0)) rotate(var(--tilt, 0deg));
+  background:
+    linear-gradient(180deg, #fff2c9 0 26%, #f0c561 26% 74%, #c68f28 74% 100%);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(120, 80, 10, 0.35);
+}
+
+/* banderola na paczce */
+.bundle::after {
+  content: '';
+  position: absolute;
+  left: 32%;
+  top: -1px;
+  bottom: -1px;
+  width: 16%;
+  background: linear-gradient(180deg, #ffdf8c, #d99a20);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+/* Spadanie: każda paczka rusza chwilę po poprzedniej, z lekkim rozrzutem. */
+.lane__stack.is-falling .bundle {
+  animation: bundle-fall 1.15s cubic-bezier(0.45, 0, 0.9, 0.35) forwards;
+  animation-delay: calc(var(--i) * 22ms);
+}
+
+@keyframes bundle-fall {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateX(calc(var(--x, 0px) + var(--drift, 0px)))
+      translateY(300px) rotate(calc(var(--tilt, 0deg) + 160deg));
+    opacity: 0;
+    filter: brightness(0.3);
+  }
+}
+
+/* Stan po otwarciu zapadni */
+.stage.is-revealed .lane.is-doomed .lane__panel {
+  border-color: rgba(255, 95, 122, 0.5);
+  opacity: 0.5;
+}
+
+.stage.is-revealed .lane.is-safe .lane__panel {
+  border-color: var(--good);
+  background: linear-gradient(180deg, rgba(52, 226, 160, 0.35), rgba(14, 40, 32, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 34px rgba(52, 226, 160, 0.4);
+  animation: safe-flash 0.6s ease 2;
+}
+
+@keyframes safe-flash {
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 0 52px rgba(52, 226, 160, 0.75);
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Odsłonięcie odpowiedzi                                                */
+/* --------------------------------------------------------------------- */
+
+/* Taca i podsumowanie zajmują to samo miejsce pod sceną. Wspólny kontener
+   trzyma wysokość także w tych dwóch sekundach, gdy nie widać żadnego z nich —
+   dzięki temu scena z zapadniami ani drgnie. */
+.bottombar {
+  display: grid;
+  min-height: 104px;
+}
+
+.bottombar > * {
+  grid-area: 1 / 1;
+}
+
+.reveal {
+  display: grid;
+  gap: 0.35rem;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  padding: clamp(0.8rem, 2vw, 1.2rem);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  animation: fade-in 0.4s ease both;
+}
+
+.reveal__headline {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 800;
+  color: var(--good);
+}
+
+.reveal__headline.is-bad {
+  color: var(--bad);
+}
+
+.reveal__detail {
+  margin: 0;
+}
+
+.reveal__note {
+  margin: 0 0 0.4rem;
+  max-width: 62ch;
+  color: var(--ink-dim);
+  font-size: 0.86rem;
+}
+
+/* --------------------------------------------------------------------- */
+/* Taca — paczki w rękach                                                */
+/* --------------------------------------------------------------------- */
+
+.tray {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  padding: 0.7rem clamp(0.8rem, 2vw, 1.3rem);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+}
+
+.tray__hand {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.7rem;
+}
+
+/* Miniaturowy stos tego, co jeszcze trzymasz w rękach. */
+.hand__stack {
+  position: relative;
+  width: 54px;
+  height: 46px;
+  flex: none;
+  --stack-max: 34px;
+}
+
+.hand__stack .bundle {
+  height: 5px;
+  border-radius: 1px;
+}
+
+.hand__info {
+  display: flex;
+  flex-direction: column;
+}
+
+.tray__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.tray__value {
+  font-size: var(--step-1);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  transition: color 0.2s ease;
+}
+
+.tray__value.is-zero {
+  color: var(--good);
+}
+
+.tray__count {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+
+.grabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.grab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.7rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.grab:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.grab.is-selected {
+  border-color: var(--gold);
+  background: rgba(255, 194, 71, 0.16);
+  box-shadow: 0 0 18px rgba(255, 194, 71, 0.25);
+}
+
+.grab:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Ikonka: tyle kresek, ile paczek bierzemy naraz. */
+.grab__stack {
+  display: block;
+  width: 26px;
+  height: 14px;
+  background:
+    repeating-linear-gradient(180deg, #f0c561 0 3px, transparent 3px 5px) bottom / 100% calc(var(--n, 1) * 5px)
+      no-repeat;
+}
+
+.grab__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.grab.is-selected .grab__label {
+  color: var(--gold);
+}
+
+.tray__actions {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tray__hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  min-height: 1rem;
+}
+
+/* --------------------------------------------------------------------- */
+/* Ekran końcowy                                                         */
+/* --------------------------------------------------------------------- */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.panel--end {
+  margin: auto;
+  width: min(100%, 640px);
+  text-align: center;
+  position: relative;
+  z-index: 6;
+}
+
+.end__eyebrow {
+  margin: 0;
+  color: var(--gold);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.end__amount {
+  margin: 0.9rem 0 0.5rem;
+  font-size: var(--step-4);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #fff6d8, var(--gold) 50%, var(--gold-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.end__amount.is-bad {
+  background: linear-gradient(180deg, #ffd2da, var(--bad));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.end__text {
+  margin: 0 auto;
+  max-width: 46ch;
+  color: var(--ink-dim);
+}
+
+.summary {
+  margin: 1.4rem 0 0.8rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.summary__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary__round {
+  color: var(--ink-dim);
+}
+
+.summary__kept {
+  color: var(--good);
+  font-weight: 700;
+}
+
+.summary__lost {
+  color: var(--bad);
+  min-width: 8ch;
+  text-align: right;
+}
+
+.summary__lost.is-none {
+  color: var(--ink-dim);
+}
+
+.summary__row.is-bad .summary__kept {
+  color: var(--bad);
+}
+
+.end__seed {
+  margin: 0 0 1.2rem;
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.end__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------- */
+/* Okno zasad                                                            */
+/* --------------------------------------------------------------------- */
+
+.rules {
+  width: min(92vw, 580px);
+  max-height: 88vh;
+  color: var(--ink);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: clamp(1.2rem, 3vw, 2rem);
+}
+
+.rules::backdrop {
+  background: rgba(4, 2, 16, 0.75);
+  backdrop-filter: blur(3px);
+}
+
+.rules h2 {
+  margin: 0 0 0.8rem;
+  font-size: var(--step-2);
+}
+
+.rules h3 {
+  margin: 1.4rem 0 0.5rem;
+  font-size: var(--step-1);
+}
+
+.rules ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--ink-dim);
+}
+
+.rules strong {
+  color: var(--ink);
+}
+
+.rules__keys {
+  list-style: none;
+  padding: 0;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.rules .btn {
+  margin-top: 1.4rem;
+}
+
+/* --------------------------------------------------------------------- */
+/* Małe ekrany                                                           */
+/* --------------------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .stage {
+    height: clamp(250px, 34vh, 320px);
+    --floor-h: 150px;
+    --pit-h: clamp(60px, 8vh, 92px);
+  }
+
+  .lane__panel {
+    min-height: 3.4rem;
+    padding: 0.45rem 0.3rem;
+  }
+
+  .lane__stack {
+    width: min(84%, 62px);
+    height: 80px;
+    --stack-max: 72px;
+  }
+
+  .tray {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .tray__actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tray__hint {
+    text-align: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .lane__letter {
+    display: none;
+  }
+
+  .grab {
+    padding: 0.35rem 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trap__flap,
+  .bundle {
+    transition-duration: 0.01ms !important;
+  }
+
+  .lane__stack.is-falling .bundle {
+    animation-duration: 0.2s !important;
+    animation-delay: 0ms !important;
+  }
+
+  .hud__cell--timer.is-urgent .ring__value,
+  .stage.is-revealed .lane.is-safe .lane__panel,
+  .lane.is-bumped .lane__amount {
+    animation: none !important;
+  }
+}
+</style>
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"></div>
+
+    <div class="app">
+      <header class="topbar">
+        <p class="logo">Postaw na <span>milion</span></p>
+        <div class="topbar__actions">
+          <button id="btn-rules" class="btn btn--ghost" type="button">Zasady</button>
+          <button id="btn-sound" class="btn btn--ghost" type="button" aria-pressed="true">🔊 Dźwięk</button>
+        </div>
+      </header>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Ekran startowy                                             -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-start" class="screen">
+        <div class="panel panel--intro">
+          <p class="intro__eyebrow">Teleturniej</p>
+          <h1 class="intro__title">Milion złotych.<br />Cztery zapadnie.</h1>
+          <p class="intro__lead">
+            Dostajesz czterdzieści paczek po 25 000 zł. Kładziesz je na zapadniach z odpowiedziami —
+            a potem te pod błędnymi polami otwierają się i pieniądze lecą w dół.
+          </p>
+
+          <ol class="steps">
+            <li><strong>Rozłóż</strong> wszystkie paczki, ale jedno pole zostaw puste.</li>
+            <li><strong>Zatwierdź</strong>, zanim skończy się czas.</li>
+            <li><strong>Zabierz</strong> to, co nie spadło — i graj dalej.</li>
+          </ol>
+
+          <div class="start-actions">
+            <button id="btn-start" class="btn btn--gold btn--xl" type="button">Zaczynamy</button>
+            <label class="seed">
+              <span>Kod gry (opcjonalnie)</span>
+              <input id="seed-input" type="text" maxlength="24" placeholder="np. LOSOWY" autocomplete="off" />
+            </label>
+          </div>
+
+          <p id="best-score" class="best" role="status"></p>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Gra                                                        -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-game" class="screen">
+        <div class="hud">
+          <div class="hud__cell">
+            <span class="hud__label">Runda</span>
+            <strong id="round-label" class="hud__value">1 / 8</strong>
+          </div>
+          <div class="hud__cell hud__cell--bank">
+            <span class="hud__label">W grze</span>
+            <strong id="balance" class="hud__value hud__value--money" role="status">1 000 000 zł</strong>
+          </div>
+          <div id="timer" class="hud__cell hud__cell--timer">
+            <svg viewBox="0 0 60 60" class="ring" aria-hidden="true">
+              <circle class="ring__bg" cx="30" cy="30" r="26" />
+              <circle id="timer-ring" class="ring__fg" cx="30" cy="30" r="26" />
+            </svg>
+            <span id="timer-value" class="ring__value">90</span>
+            <span class="visually-hidden">sekund do końca rundy</span>
+          </div>
+        </div>
+
+        <div class="question">
+          <span id="q-category" class="question__category">Geografia</span>
+          <h2 id="q-text" class="question__text">&nbsp;</h2>
+          <p id="q-final" class="question__final" hidden>
+            Finał — zostały dwie zapadnie. Wszystko na jedną.
+          </p>
+        </div>
+
+        <!-- Scena: warstwa zapadni (3D) + warstwa ekranów i stosów (2D) -->
+        <div id="stage" class="stage" style="--doors: 4">
+          <div class="stage__void" aria-hidden="true"></div>
+          <div id="floor" class="floor" aria-hidden="true"></div>
+          <div id="lanes" class="lanes"></div>
+        </div>
+
+        <!-- Taca i podsumowanie dzielą to samo miejsce, żeby scena nie skakała. -->
+        <div class="bottombar">
+          <div id="reveal" class="reveal" hidden>
+            <p id="reveal-headline" class="reveal__headline"></p>
+            <p id="reveal-detail" class="reveal__detail"></p>
+            <p id="reveal-note" class="reveal__note"></p>
+            <button id="btn-next" class="btn btn--gold" type="button">Następne pytanie</button>
+          </div>
+
+          <div id="tray" class="tray">
+            <div class="tray__hand">
+              <div id="hand-stack" class="hand__stack" aria-hidden="true"></div>
+              <div class="hand__info">
+                <span class="tray__label">W rękach</span>
+                <strong id="unplaced" class="tray__value" role="status">1 000 000 zł</strong>
+                <span id="unplaced-count" class="tray__count">40 paczek</span>
+              </div>
+            </div>
+
+            <div id="grabs" class="grabs" role="group" aria-label="Ile paczek brać naraz"></div>
+
+            <div class="tray__actions">
+              <button id="btn-undo" class="btn btn--ghost" type="button">Cofnij</button>
+              <button id="btn-clear" class="btn btn--ghost" type="button">Zdejmij wszystko</button>
+              <button id="btn-lock" class="btn btn--gold" type="button" disabled>Zatwierdzam</button>
+              <p id="lock-hint" class="tray__hint" role="status"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- -->
+      <!-- Koniec gry                                                 -->
+      <!-- ---------------------------------------------------------- -->
+      <section id="screen-end" class="screen">
+        <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+        <div class="panel panel--end">
+          <p id="end-eyebrow" class="end__eyebrow"></p>
+          <p id="end-amount" class="end__amount"></p>
+          <p id="end-text" class="end__text"></p>
+          <ol id="summary" class="summary"></ol>
+          <p id="end-seed" class="end__seed"></p>
+          <div class="end__actions">
+            <button id="btn-again" class="btn btn--gold" type="button">Jeszcze raz</button>
+            <button id="btn-home" class="btn btn--ghost" type="button">Ekran startowy</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <dialog id="rules-dialog" class="rules">
+      <h2>Zasady</h2>
+      <ul>
+        <li>
+          Zaczynasz z <strong>1 000 000 zł</strong> — czterdziestoma paczkami po 25 000 zł.
+        </li>
+        <li>
+          Pod każdą odpowiedzią jest <strong>zapadnia</strong>. Kładziesz na nich wszystkie paczki:
+          wszystko na jedną albo z asekuracją na kilku.
+        </li>
+        <li>
+          <strong>Jedna zapadnia musi zostać pusta</strong> — na wszystkie naraz postawić się nie da.
+        </li>
+        <li>
+          Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami się otwierają. To, co na nich leżało,
+          leci w dół i nie wraca.
+        </li>
+        <li>
+          Zatwierdzić można dopiero po rozłożeniu wszystkich paczek. Jeśli skończy się czas, runda
+          rozliczy się sama, a paczki trzymane w rękach <strong>przepadają</strong>.
+        </li>
+        <li>
+          Rund jest osiem. W <strong>finale</strong> zostają tylko dwie zapadnie — czyli wszystko na
+          jedną odpowiedź.
+        </li>
+        <li>Kiedy w grze zostanie 0 zł — koniec.</li>
+      </ul>
+      <h3>Skróty klawiszowe</h3>
+      <ul class="rules__keys">
+        <li><kbd>1</kbd>–<kbd>4</kbd> ile paczek brać naraz</li>
+        <li><kbd>A</kbd>–<kbd>D</kbd> położenie paczek na zapadni</li>
+        <li><kbd>Shift</kbd> + <kbd>A</kbd>–<kbd>D</kbd> cała reszta na jedno pole</li>
+        <li><kbd>Backspace</kbd> cofnięcie ostatniego ruchu</li>
+        <li><kbd>Enter</kbd> zatwierdzenie rundy / przejście dalej</li>
+      </ul>
+      <button id="btn-rules-close" class="btn btn--gold" type="button">Rozumiem</button>
+    </dialog>
+
+    <script>
+(function () {
+'use strict';
+/* ===== src/storage.js ===== */
+/**
+ * Bezpieczny dostęp do localStorage.
+ *
+ * W trybie prywatnym, w osadzonej ramce albo przy zablokowanych ciasteczkach
+ * samo sięgnięcie po localStorage rzuca wyjątkiem. Bez tej osłony gra nie
+ * wystartowałaby w ogóle — a przecież chodzi tylko o zapamiętanie wyniku
+ * i ustawienia dźwięku.
+ */
+
+function readSetting(key, fallback = null) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSetting(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ===== src/engine.js ===== */
+/**
+ * Silnik gry "Postaw na milion".
+ *
+ * Zasady wzorowane na teleturnieju: pieniądze leżą w paczkach na zapadniach.
+ * Po zatwierdzeniu zapadnie pod błędnymi odpowiedziami otwierają się i paczki
+ * lecą w dół. Zostaje tylko to, co leżało na poprawnym polu.
+ *
+ * Moduł jest czysty (bez DOM, bez efektów ubocznych) i deterministyczny przy
+ * podanym ziarnie losowości — dzięki temu da się go testować w Node.
+ * Każda funkcja zwraca NOWY stan, nigdy nie modyfikuje przekazanego.
+ */
+
+/** Wartość jednej paczki banknotów. Wszystkie kwoty są jej wielokrotnością. */
+const BUNDLE = 25_000;
+
+const START_BALANCE = 1_000_000; // 40 paczek
+const ROUND_COUNT = 8;
+
+/** Ile paczek naraz można chwycić (przyciski w tacy). */
+const GRAB_SIZES = [1, 2, 4, 10];
+
+/** Czas na rozłożenie paczek w kolejnych rundach (w sekundach). */
+const ROUND_SECONDS = [90, 85, 80, 75, 70, 65, 60, 50];
+
+/** Poziom trudności pytania w kolejnych rundach. */
+const DIFFICULTY_PLAN = [1, 2, 2, 3, 3, 4, 4, 5];
+
+/** W ostatniej rundzie zostają tylko dwie zapadnie — wszystko na jedną. */
+const FINAL_DOORS = 2;
+
+/* ------------------------------------------------------------------ *
+ * Losowość
+ * ------------------------------------------------------------------ */
+
+/** Generator mulberry32 — szybki, deterministyczny, wystarczający do gry. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Zamienia dowolny tekst na 32-bitowe ziarno (FNV-1a). */
+function hashSeed(text) {
+  let h = 2166136261;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function makeRng(seed) {
+  return mulberry32(hashSeed(seed));
+}
+
+/** Tasowanie Fishera-Yatesa na kopii tablicy. */
+function shuffle(list, rng) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Dobór pytań
+ * ------------------------------------------------------------------ */
+
+/**
+ * Wybiera po jednym pytaniu na rundę zgodnie z DIFFICULTY_PLAN.
+ * Gdy w danym poziomie zabraknie pytań, sięga po najbliższy dostępny poziom.
+ * Kolejność odpowiedzi w każdym pytaniu jest losowana.
+ */
+function selectQuestions(questions, rng, plan = DIFFICULTY_PLAN) {
+  const pools = new Map();
+  for (const q of questions) {
+    if (!pools.has(q.difficulty)) pools.set(q.difficulty, []);
+    pools.get(q.difficulty).push(q);
+  }
+  for (const [level, pool] of pools) pools.set(level, shuffle(pool, rng));
+
+  const levels = [...pools.keys()].sort((a, b) => a - b);
+  const picked = [];
+
+  for (const wanted of plan) {
+    const order = levels
+      .slice()
+      .sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted) || a - b);
+    let question = null;
+    for (const level of order) {
+      const pool = pools.get(level);
+      if (pool && pool.length) {
+        question = pool.pop();
+        break;
+      }
+    }
+    if (!question) throw new Error('Za mało pytań w bazie, aby rozpocząć grę.');
+    picked.push(prepareQuestion(question, rng));
+  }
+  return picked;
+}
+
+/** Kopiuje pytanie z potasowanymi odpowiedziami. */
+function prepareQuestion(question, rng) {
+  return {
+    ...question,
+    answers: shuffle(question.answers, rng).map((a) => ({ ...a })),
+  };
+}
+
+/**
+ * Finał: zostaje poprawna odpowiedź i jeden losowy dystraktor.
+ * Kolejność znowu losowa, żeby poprawna nie lądowała zawsze po tej samej stronie.
+ */
+function trimToFinal(question, rng, doors = FINAL_DOORS) {
+  const correct = question.answers.filter((a) => a.correct);
+  const wrong = shuffle(
+    question.answers.filter((a) => !a.correct),
+    rng,
+  );
+  const kept = [...correct, ...wrong].slice(0, Math.max(doors, correct.length + 1));
+  return { ...question, answers: shuffle(kept, rng), isFinal: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * Stan gry
+ * ------------------------------------------------------------------ */
+
+function createGame({
+  questions,
+  seed = 'domyslne',
+  startBalance = START_BALANCE,
+  plan = DIFFICULTY_PLAN,
+} = {}) {
+  const rng = makeRng(seed);
+  const selected = selectQuestions(questions, rng, plan);
+  selected[selected.length - 1] = trimToFinal(selected[selected.length - 1], rng);
+
+  return {
+    seed: String(seed),
+    startBalance,
+    balance: startBalance,
+    roundIndex: 0,
+    questions: selected,
+    bets: new Array(selected[0].answers.length).fill(0),
+    moves: [],
+    status: 'placing', // 'placing' | 'revealed' | 'over'
+    outcome: null, // 'continue' | 'lost' | 'won'
+    result: null,
+    history: [],
+  };
+}
+
+function currentQuestion(state) {
+  return state.questions[state.roundIndex];
+}
+
+function roundSeconds(state) {
+  return ROUND_SECONDS[state.roundIndex] ?? ROUND_SECONDS[ROUND_SECONDS.length - 1];
+}
+
+/** Kwota, która nie została jeszcze położona na żadnej zapadni. */
+function unplaced(state) {
+  return state.balance - state.bets.reduce((sum, v) => sum + v, 0);
+}
+
+/** Liczba paczek pozostałych w ręce. */
+function unplacedBundles(state) {
+  return unplaced(state) / BUNDLE;
+}
+
+/** Ile zapadni jest jeszcze pustych. */
+function emptyDoors(state) {
+  return state.bets.filter((v) => v === 0).length;
+}
+
+/**
+ * Zasada teleturnieju: co najmniej jedna zapadnia musi zostać pusta.
+ * Pilnujemy jej już przy kładzeniu paczek, więc stan nigdy nie jest niezgodny —
+ * także wtedy, gdy rundę rozliczy upływ czasu.
+ */
+function canPlaceOn(state, index) {
+  if (state.status !== 'placing') return false;
+  if (unplaced(state) <= 0) return false;
+  if (state.bets[index] > 0) return true;
+  return emptyDoors(state) > 1;
+}
+
+/** Czy rundę można zatwierdzić. */
+function canLock(state) {
+  return state.status === 'placing' && unplaced(state) === 0 && emptyDoors(state) >= 1;
+}
+
+function assertPlacing(state) {
+  if (state.status !== 'placing') {
+    throw new Error('Paczki można przekładać tylko w trakcie rundy.');
+  }
+}
+
+function place(state, index, amount) {
+  assertPlacing(state);
+  if (!Number.isInteger(index) || index < 0 || index >= state.bets.length) {
+    throw new Error('Nie ma takiej zapadni.');
+  }
+  if (!(amount > 0)) throw new Error('Kwota musi być dodatnia.');
+  if (amount % BUNDLE !== 0) throw new Error('Kłaść można tylko całe paczki.');
+  if (amount > unplaced(state)) throw new Error('Nie masz tylu pieniędzy.');
+  if (state.bets[index] === 0 && emptyDoors(state) <= 1) {
+    throw new Error('Jedna zapadnia musi zostać pusta.');
+  }
+
+  const bets = state.bets.slice();
+  bets[index] += amount;
+  return { ...state, bets, moves: [...state.moves, { index, amount }] };
+}
+
+/** Kładzie n paczek; jeśli tyle nie zostało, kładzie tyle, ile jest. */
+function placeBundles(state, index, count) {
+  const available = Math.min(count, unplacedBundles(state));
+  return available > 0 ? place(state, index, available * BUNDLE) : state;
+}
+
+function take(state, index, amount) {
+  assertPlacing(state);
+  const current = state.bets[index] ?? 0;
+  const value = Math.min(amount, current);
+  if (value <= 0) return state;
+  const bets = state.bets.slice();
+  bets[index] -= value;
+  return { ...state, bets, moves: [...state.moves, { index, amount: -value }] };
+}
+
+/** Dokłada całą resztę na wskazaną zapadnię. */
+function placeRest(state, index) {
+  const left = unplaced(state);
+  return left > 0 ? place(state, index, left) : state;
+}
+
+function undo(state) {
+  assertPlacing(state);
+  if (!state.moves.length) return state;
+  const moves = state.moves.slice();
+  const last = moves.pop();
+  const bets = state.bets.slice();
+  bets[last.index] -= last.amount;
+  return { ...state, bets, moves };
+}
+
+function clearBets(state) {
+  assertPlacing(state);
+  return { ...state, bets: state.bets.map(() => 0), moves: [] };
+}
+
+function correctIndexes(question) {
+  return question.answers
+    .map((a, i) => (a.correct ? i : -1))
+    .filter((i) => i >= 0);
+}
+
+/**
+ * Otwiera zapadnie: zostaje tylko to, co leży na poprawnej odpowiedzi.
+ * Pieniądze wciąż trzymane w ręce (np. po upływie czasu) też lecą w dół.
+ */
+function resolve(state) {
+  assertPlacing(state);
+  const question = currentQuestion(state);
+  const correct = correctIndexes(question);
+  const correctSet = new Set(correct);
+
+  let kept = 0;
+  let dropped = 0;
+  state.bets.forEach((value, i) => {
+    if (correctSet.has(i)) kept += value;
+    else dropped += value;
+  });
+  const forfeited = unplaced(state);
+
+  const isLast = state.roundIndex >= state.questions.length - 1;
+  const outcome = kept === 0 ? 'lost' : isLast ? 'won' : 'continue';
+
+  const result = {
+    correct,
+    kept,
+    dropped: dropped + forfeited,
+    forfeited,
+    balanceBefore: state.balance,
+  };
+
+  return {
+    ...state,
+    balance: kept,
+    status: 'revealed',
+    outcome,
+    result,
+    history: [
+      ...state.history,
+      {
+        round: state.roundIndex + 1,
+        questionId: question.id,
+        bets: state.bets.slice(),
+        kept,
+        dropped: result.dropped,
+      },
+    ],
+  };
+}
+
+/** Przechodzi do kolejnej rundy albo kończy grę. */
+function advance(state) {
+  if (state.status !== 'revealed') return state;
+  if (state.outcome !== 'continue') {
+    return { ...state, status: 'over' };
+  }
+  const roundIndex = state.roundIndex + 1;
+  return {
+    ...state,
+    roundIndex,
+    bets: new Array(state.questions[roundIndex].answers.length).fill(0),
+    moves: [],
+    status: 'placing',
+    outcome: null,
+    result: null,
+  };
+}
+
+function isOver(state) {
+  return state.status === 'over';
+}
+
+/* ===== src/questions.js ===== */
+/**
+ * Baza pytań.
+ *
+ * Format jednego pytania:
+ *   {
+ *     id:         unikalny identyfikator (string),
+ *     category:   nazwa kategorii pokazywana nad pytaniem,
+ *     difficulty: 1-5 (1 = najłatwiejsze),
+ *     text:       treść pytania,
+ *     answers:    dokładnie 4 odpowiedzi (tyle jest zapadni), jedna poprawna,
+ *     note:       krótkie wyjaśnienie pokazywane po otwarciu zapadni
+ *   }
+ *
+ * Zasada przy układaniu pytań: wszystkie cztery odpowiedzi mają brzmieć
+ * sensownie. Pytanie jest dobre wtedy, gdy nie da się odsiać trzech błędnych
+ * jednym spojrzeniem — dopiero wtedy rozkładanie paczek ma sens.
+ *
+ * Kolejność odpowiedzi jest losowana w trakcie gry, więc można je wpisywać
+ * w dowolnym porządku.
+ */
+
+const QUESTIONS = [
+  /* ============================ poziom 1 ============================ */
+  {
+    id: 'przyr-nie-ssak',
+    category: 'Przyroda',
+    difficulty: 1,
+    text: 'Które z tych zwierząt NIE jest ssakiem?',
+    answers: [
+      { text: 'Rekin', correct: true },
+      { text: 'Delfin' },
+      { text: 'Wieloryb' },
+      { text: 'Nietoperz' },
+    ],
+    note: 'Rekin to ryba. Delfin i wieloryb są ssakami morskimi, a nietoperz — jedynym ssakiem, który naprawdę lata.',
+  },
+  {
+    id: 'geo-sasiedzi-polski',
+    category: 'Geografia',
+    difficulty: 1,
+    text: 'Które z tych państw NIE graniczy z Polską?',
+    answers: [
+      { text: 'Węgry', correct: true },
+      { text: 'Litwa' },
+      { text: 'Słowacja' },
+      { text: 'Białoruś' },
+    ],
+    note: 'Polska ma siedmiu sąsiadów. Węgry są od nas oddzielone Słowacją — mimo przysłowia o dwóch bratankach.',
+  },
+  {
+    id: 'sport-siatkowka',
+    category: 'Sport',
+    difficulty: 1,
+    text: 'Ilu zawodników jednej drużyny znajduje się na boisku w siatkówce?',
+    answers: [{ text: '6', correct: true }, { text: '5' }, { text: '7' }, { text: '4' }],
+    note: 'Sześciu — trzech w linii ataku i trzech w obronie. Pięciu gra w koszykówce.',
+  },
+  {
+    id: 'kult-wiedzmin',
+    category: 'Kultura',
+    difficulty: 1,
+    text: 'Jak nazywa się główny bohater sagi „Wiedźmin”?',
+    answers: [
+      { text: 'Geralt z Rivii', correct: true },
+      { text: 'Jaskier z Oxenfurtu' },
+      { text: 'Regis z Dillingen' },
+      { text: 'Eskel z Kaer Morhen' },
+    ],
+    note: 'Pozostali też występują w książkach Sapkowskiego — ale wiedźminem z tytułu jest Geralt.',
+  },
+  {
+    id: 'hist-herb-warszawy',
+    category: 'Historia',
+    difficulty: 1,
+    text: 'Co przedstawia herb Warszawy?',
+    answers: [
+      { text: 'Syrenę', correct: true },
+      { text: 'Orła' },
+      { text: 'Lwa' },
+      { text: 'Niedźwiedzia' },
+    ],
+    note: 'Warszawska Syrenka z mieczem i tarczą. Lew jest w herbie Lwowa, niedźwiedź — Przemyśla.',
+  },
+  {
+    id: 'hist-ue-2004',
+    category: 'Historia',
+    difficulty: 1,
+    text: 'W którym roku Polska wstąpiła do Unii Europejskiej?',
+    answers: [{ text: '2004', correct: true }, { text: '1999' }, { text: '2002' }, { text: '2007' }],
+    note: '1 maja 2004 roku, razem z dziewięcioma innymi państwami. W 1999 Polska weszła do NATO.',
+  },
+  {
+    id: 'muz-skrzypce',
+    category: 'Muzyka',
+    difficulty: 1,
+    text: 'Ile strun ma skrzypce?',
+    answers: [{ text: '4', correct: true }, { text: '5' }, { text: '6' }, { text: '3' }],
+    note: 'Cztery: G, D, A, E. Sześć strun ma gitara, a trzy — bałałajka.',
+  },
+  {
+    id: 'hist-piastowie',
+    category: 'Historia',
+    difficulty: 1,
+    text: 'Jak nazywała się pierwsza polska dynastia panująca?',
+    answers: [
+      { text: 'Piastowie', correct: true },
+      { text: 'Jagiellonowie' },
+      { text: 'Wazowie' },
+      { text: 'Andegawenowie' },
+    ],
+    note: 'Piastowie rządzili od Mieszka I do Kazimierza Wielkiego. Potem przyszli Andegawenowie i Jagiellonowie.',
+  },
+
+  /* ============================ poziom 2 ============================ */
+  {
+    id: 'geo-ankara',
+    category: 'Geografia',
+    difficulty: 2,
+    text: 'Które miasto jest stolicą Turcji?',
+    answers: [
+      { text: 'Ankara', correct: true },
+      { text: 'Stambuł' },
+      { text: 'Izmir' },
+      { text: 'Antalya' },
+    ],
+    note: 'Stambuł jest największy i najbardziej znany, ale stolicę przeniesiono do Ankary w 1923 roku.',
+  },
+  {
+    id: 'jez-kopa',
+    category: 'Język polski',
+    difficulty: 2,
+    text: 'Ile sztuk liczy dawna miara „kopa”?',
+    answers: [{ text: '60', correct: true }, { text: '50' }, { text: '40' }, { text: '100' }],
+    note: 'Kopa to 60 sztuk, czyli pięć tuzinów. Stąd „kopa siana” i „kopa jaj”.',
+  },
+  {
+    id: 'kuch-jaglana',
+    category: 'Kuchnia',
+    difficulty: 2,
+    text: 'Z jakiego zboża produkuje się kaszę jaglaną?',
+    answers: [
+      { text: 'Z prosa', correct: true },
+      { text: 'Z jęczmienia' },
+      { text: 'Z owsa' },
+      { text: 'Z gryki' },
+    ],
+    note: 'Jaglana to obłuskane proso. Z jęczmienia jest pęczak i perłowa, z gryki — gryczana.',
+  },
+  {
+    id: 'jez-dopelniacz',
+    category: 'Język polski',
+    difficulty: 2,
+    text: 'Który przypadek odpowiada na pytania „kogo? czego?”',
+    answers: [
+      { text: 'Dopełniacz', correct: true },
+      { text: 'Biernik' },
+      { text: 'Celownik' },
+      { text: 'Narzędnik' },
+    ],
+    note: 'Biernik to „kogo? co?”, celownik „komu? czemu?”, a narzędnik „z kim? z czym?”.',
+  },
+  {
+    id: 'lit-saba',
+    category: 'Literatura',
+    difficulty: 2,
+    text: 'Jak nazywał się pies ze „W pustyni i w puszczy”?',
+    answers: [{ text: 'Saba', correct: true }, { text: 'Kali' }, { text: 'Mea' }, { text: 'Nel' }],
+    note: 'Saba to dog. Kali i Mea to towarzysze podróży, a Nel — mała bohaterka powieści.',
+  },
+  {
+    id: 'geo-warta',
+    category: 'Geografia',
+    difficulty: 2,
+    text: 'Które z tych miast leży nad Wartą?',
+    answers: [
+      { text: 'Poznań', correct: true },
+      { text: 'Toruń' },
+      { text: 'Wrocław' },
+      { text: 'Lublin' },
+    ],
+    note: 'Toruń leży nad Wisłą, Wrocław nad Odrą, a Lublin nad Bystrzycą.',
+  },
+  {
+    id: 'muz-niemen',
+    category: 'Muzyka',
+    difficulty: 2,
+    text: 'Kto śpiewał „Dziwny jest ten świat”?',
+    answers: [
+      { text: 'Czesław Niemen', correct: true },
+      { text: 'Marek Grechuta' },
+      { text: 'Krzysztof Krawczyk' },
+      { text: 'Andrzej Zaucha' },
+    ],
+    note: 'Niemen wykonał ją na festiwalu w Opolu w 1967 roku — i przeszedł do historii.',
+  },
+  {
+    id: 'licz-miliard',
+    category: 'Liczby',
+    difficulty: 2,
+    text: 'Ile zer ma miliard zapisany cyframi?',
+    answers: [{ text: '9', correct: true }, { text: '6' }, { text: '12' }, { text: '8' }],
+    note: '1 000 000 000 — dziewięć zer. Sześć ma milion, dwanaście bilion.',
+  },
+
+  /* ============================ poziom 3 ============================ */
+  {
+    id: 'licz-doba',
+    category: 'Liczby',
+    difficulty: 3,
+    text: 'Ile minut ma doba?',
+    answers: [
+      { text: '1440', correct: true },
+      { text: '1240' },
+      { text: '1200' },
+      { text: '1660' },
+    ],
+    note: '24 razy 60. Sekund w dobie jest już 86 400.',
+  },
+  {
+    id: 'nauka-rtec',
+    category: 'Nauka',
+    difficulty: 3,
+    text: 'Który z tych metali jest cieczą w temperaturze pokojowej?',
+    answers: [{ text: 'Rtęć', correct: true }, { text: 'Ołów' }, { text: 'Cyna' }, { text: 'Potas' }],
+    note: 'Rtęć topi się w −39°C. Cyna dopiero w 232°C, a ołów w 327°C.',
+  },
+  {
+    id: 'jez-grochem',
+    category: 'Język polski',
+    difficulty: 3,
+    text: 'Co znaczy powiedzenie „rzucać grochem o ścianę”?',
+    answers: [
+      { text: 'Mówić do kogoś bez najmniejszego skutku', correct: true },
+      { text: 'Marnować jedzenie' },
+      { text: 'Kłócić się o drobiazgi' },
+      { text: 'Robić coś w wielkim pośpiechu' },
+    ],
+    note: 'Groch odbija się od ściany i wraca — tak jak argumenty od kogoś, kto nie słucha.',
+  },
+  {
+    id: 'geo-sniezka',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Jak nazywa się najwyższy szczyt Karkonoszy?',
+    answers: [
+      { text: 'Śnieżka', correct: true },
+      { text: 'Śnieżnik' },
+      { text: 'Babia Góra' },
+      { text: 'Rysy' },
+    ],
+    note: 'Śnieżka ma 1603 m. Rysy to Tatry, Babia Góra — Beskidy, a Śnieżnik leży w Masywie Śnieżnika.',
+  },
+  {
+    id: 'muz-pianino',
+    category: 'Muzyka',
+    difficulty: 3,
+    text: 'Ile klawiszy ma standardowe pianino?',
+    answers: [{ text: '88', correct: true }, { text: '76' }, { text: '61' }, { text: '96' }],
+    note: '52 białe i 36 czarnych. 61 i 76 to typowe rozmiary keyboardów.',
+  },
+  {
+    id: 'lit-nobliści',
+    category: 'Literatura',
+    difficulty: 3,
+    text: 'Ilu Polaków otrzymało do tej pory literacką Nagrodę Nobla?',
+    answers: [{ text: '5', correct: true }, { text: '3' }, { text: '4' }, { text: '6' }],
+    note: 'Sienkiewicz, Reymont, Miłosz, Szymborska i Tokarczuk.',
+  },
+  {
+    id: 'hist-lokietek',
+    category: 'Historia',
+    difficulty: 3,
+    text: 'Który polski król nosił przydomek Łokietek?',
+    answers: [
+      { text: 'Władysław', correct: true },
+      { text: 'Kazimierz' },
+      { text: 'Bolesław' },
+      { text: 'Mieszko' },
+    ],
+    note: 'Władysław I Łokietek — przydomek wziął się z niskiego wzrostu. Jego synem był Kazimierz Wielki.',
+  },
+  {
+    id: 'sport-golf',
+    category: 'Sport',
+    difficulty: 3,
+    text: 'Ile dołków ma standardowe pole golfowe?',
+    answers: [{ text: '18', correct: true }, { text: '12' }, { text: '16' }, { text: '24' }],
+    note: 'Osiemnaście — układ przyjęty w XVIII wieku w szkockim St Andrews.',
+  },
+
+  /* ============================ poziom 4 ============================ */
+  {
+    id: 'hist-wojna-stuletnia',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Ile lat trwała wojna stuletnia?',
+    answers: [{ text: '116', correct: true }, { text: '100' }, { text: '99' }, { text: '123' }],
+    note: 'Od 1337 do 1453 roku. Nazwa jest zaokrągleniem, a nie faktem.',
+  },
+  {
+    id: 'lit-ferdydurke',
+    category: 'Literatura',
+    difficulty: 4,
+    text: 'Kto napisał „Ferdydurke”?',
+    answers: [
+      { text: 'Witold Gombrowicz', correct: true },
+      { text: 'Bruno Schulz' },
+      { text: 'Stanisław Ignacy Witkiewicz' },
+      { text: 'Zofia Nałkowska' },
+    ],
+    note: 'Gombrowicz, 1937. Wszyscy czterej tworzyli w tym samym dwudziestoleciu.',
+  },
+  {
+    id: 'film-oscar-ida',
+    category: 'Film',
+    difficulty: 4,
+    text: 'Który polski film zdobył Oscara dla najlepszego filmu nieanglojęzycznego?',
+    answers: [
+      { text: '„Ida”', correct: true },
+      { text: '„Zimna wojna”' },
+      { text: '„Katyń”' },
+      { text: '„Boże Ciało”' },
+    ],
+    note: '„Ida” Pawła Pawlikowskiego wygrała w 2015 roku. Pozostałe trzy były nominowane, ale statuetki nie zdobyły.',
+  },
+  {
+    id: 'nauka-kosci-dloni',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Ile kości ma jedna ludzka dłoń wraz z nadgarstkiem?',
+    answers: [{ text: '27', correct: true }, { text: '19' }, { text: '23' }, { text: '31' }],
+    note: '8 kości nadgarstka, 5 śródręcza i 14 paliczków. Obie dłonie to ponad jedna czwarta wszystkich kości człowieka.',
+  },
+  {
+    id: 'geo-strefa-euro',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Który z tych krajów Unii Europejskiej NIE należy do strefy euro?',
+    answers: [
+      { text: 'Szwecja', correct: true },
+      { text: 'Finlandia' },
+      { text: 'Portugalia' },
+      { text: 'Słowacja' },
+    ],
+    note: 'Szwecja płaci koronami. Finlandia i Portugalia mają euro od początku, Słowacja od 2009 roku.',
+  },
+  {
+    id: 'nauka-beaufort',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Ile stopni ma skala Beauforta?',
+    answers: [{ text: '12', correct: true }, { text: '9' }, { text: '10' }, { text: '15' }],
+    note: 'Od 0 (cisza) do 12 (huragan). Skala mierzy siłę wiatru, nie prędkość w liczbach.',
+  },
+  {
+    id: 'sport-malysz',
+    category: 'Sport',
+    difficulty: 4,
+    text: 'Który polski skoczek jako pierwszy wygrał Turniej Czterech Skoczni?',
+    answers: [
+      { text: 'Adam Małysz', correct: true },
+      { text: 'Kamil Stoch' },
+      { text: 'Wojciech Fortuna' },
+      { text: 'Piotr Żyła' },
+    ],
+    note: 'Małysz wygrał w sezonie 2000/2001. Stoch powtórzył to dopiero w 2017/2018.',
+  },
+  {
+    id: 'geo-stambul',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Które z tych miast leży na dwóch kontynentach?',
+    answers: [
+      { text: 'Stambuł', correct: true },
+      { text: 'Ateny' },
+      { text: 'Kair' },
+      { text: 'Lizbona' },
+    ],
+    note: 'Bosfor dzieli Stambuł na część europejską i azjatycką.',
+  },
+
+  /* ============================ poziom 5 ============================ */
+  {
+    id: 'hist-najkrotsza-wojna',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Ile trwała najkrótsza wojna w historii — angielsko-zanzibarska?',
+    answers: [
+      { text: 'Około 38 minut', correct: true },
+      { text: 'Około 8 godzin' },
+      { text: 'Około 38 godzin' },
+      { text: 'Około 3 dni' },
+    ],
+    note: '27 sierpnia 1896 roku. Ostrzał pałacu sułtana zakończył wojnę przed lunchem.',
+  },
+  {
+    id: 'geo-opolskie',
+    category: 'Geografia',
+    difficulty: 5,
+    text: 'Które województwo ma najmniejszą powierzchnię?',
+    answers: [
+      { text: 'Opolskie', correct: true },
+      { text: 'Świętokrzyskie' },
+      { text: 'Lubuskie' },
+      { text: 'Podlaskie' },
+    ],
+    note: 'Opolskie ma około 9,4 tys. km². Świętokrzyskie jest o dwa tysiące większe, a podlaskie ponad dwa razy.',
+  },
+  {
+    id: 'film-rejs',
+    category: 'Film',
+    difficulty: 5,
+    text: 'Kto wyreżyserował „Rejs”?',
+    answers: [
+      { text: 'Marek Piwowski', correct: true },
+      { text: 'Stanisław Bareja' },
+      { text: 'Juliusz Machulski' },
+      { text: 'Andrzej Kondratiuk' },
+    ],
+    note: 'Bareja nakręcił „Misia” i „Co mi zrobisz, jak mnie złapiesz” — „Rejs” to jednak Piwowski.',
+  },
+  {
+    id: 'jez-kolodziej',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Czym zajmował się kołodziej?',
+    answers: [
+      { text: 'Wyrabiał koła do wozów', correct: true },
+      { text: 'Hodował konie pociągowe' },
+      { text: 'Kuł podkowy' },
+      { text: 'Naprawiał studnie' },
+    ],
+    note: 'Stąd przydomek legendarnego Piasta Kołodzieja. Podkowy kuł kowal.',
+  },
+  {
+    id: 'jez-ampersand',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Jak nazywa się znak „&”?',
+    answers: [
+      { text: 'Ampersand', correct: true },
+      { text: 'Tylda' },
+      { text: 'Cedylla' },
+      { text: 'Diereza' },
+    ],
+    note: 'Tylda to „~”, cedylla to ogonek pod „ç”, a diereza — dwie kropki nad samogłoską.',
+  },
+  {
+    id: 'nauka-cisnienie',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Ile wynosi normalne ciśnienie atmosferyczne na poziomie morza?',
+    answers: [
+      { text: '1013 hPa', correct: true },
+      { text: '760 hPa' },
+      { text: '913 hPa' },
+      { text: '1113 hPa' },
+    ],
+    note: '1013 hektopaskali. Liczba 760 też jest prawdziwa — ale w milimetrach słupa rtęci.',
+  },
+  {
+    id: 'przyr-ciaza-slonia',
+    category: 'Przyroda',
+    difficulty: 5,
+    text: 'Ile trwa ciąża u słonicy?',
+    answers: [
+      { text: 'Około 22 miesięcy', correct: true },
+      { text: 'Około 12 miesięcy' },
+      { text: 'Około 16 miesięcy' },
+      { text: 'Około 30 miesięcy' },
+    ],
+    note: 'Prawie dwa lata — najdłużej ze wszystkich ssaków lądowych.',
+  },
+  {
+    id: 'lit-hanna-krall',
+    category: 'Literatura',
+    difficulty: 5,
+    text: 'Kto napisał „Zdążyć przed Panem Bogiem”?',
+    answers: [
+      { text: 'Hanna Krall', correct: true },
+      { text: 'Ryszard Kapuściński' },
+      { text: 'Marek Edelman' },
+      { text: 'Wisława Szymborska' },
+    ],
+    note: 'To zapis rozmowy Hanny Krall z Markiem Edelmanem — on jest bohaterem książki, nie jej autorem.',
+  },
+];
+
+
+
+/* ===== src/audio.js ===== */
+/**
+ * Dźwięki generowane w locie przez Web Audio API — zero plików, zero pobierania.
+ * Kontekst audio tworzymy dopiero przy pierwszym kliknięciu, bo przeglądarki
+ * blokują dźwięk bez interakcji użytkownika.
+ */
+
+
+
+const STORAGE_KEY = 'pnm.sound';
+
+let ctx = null;
+let master = null;
+let enabled = readSetting(STORAGE_KEY) !== 'off';
+
+function ensureContext() {
+  if (ctx) return ctx;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  ctx = new Ctor();
+  master = ctx.createGain();
+  master.gain.value = 0.22;
+  master.connect(ctx.destination);
+  return ctx;
+}
+
+/** Pojedynczy oscylator z obwiednią ADSR w wersji minimalnej. */
+function tone({ freq, type = 'sine', start = 0, duration = 0.18, gain = 1, sweepTo = null }) {
+  if (!enabled) return;
+  const audio = ensureContext();
+  if (!audio) return;
+  if (audio.state === 'suspended') audio.resume();
+
+  const t0 = audio.currentTime + start;
+  const osc = audio.createOscillator();
+  const env = audio.createGain();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (sweepTo) osc.frequency.exponentialRampToValueAtTime(sweepTo, t0 + duration);
+
+  env.gain.setValueAtTime(0.0001, t0);
+  env.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+  env.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+  osc.connect(env).connect(master);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.05);
+}
+
+/** Krótki szum — używany do „zmiatania” przegranych żetonów. */
+function noise({ duration = 0.5, gain = 0.5, from = 2400, to = 200 } = {}) {
+  if (!enabled) return;
+  const audio = ensureContext();
+  if (!audio) return;
+  if (audio.state === 'suspended') audio.resume();
+
+  const frames = Math.floor(audio.sampleRate * duration);
+  const buffer = audio.createBuffer(1, frames, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+  }
+  const src = audio.createBufferSource();
+  src.buffer = buffer;
+
+  const filter = audio.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(from, audio.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(to, audio.currentTime + duration);
+
+  const env = audio.createGain();
+  env.gain.value = gain;
+
+  src.connect(filter).connect(env).connect(master);
+  src.start();
+}
+
+const sfx = {
+  /** Chwycenie pliku paczek. */
+  grab: () => tone({ freq: 880, type: 'triangle', duration: 0.09, gain: 0.5 }),
+  /** Paczka ląduje na zapadni — krótkie, papierowe klapnięcie. */
+  place: () => {
+    noise({ duration: 0.09, gain: 0.22, from: 1800, to: 500 });
+    tone({ freq: 210, type: 'sine', duration: 0.09, gain: 0.3 });
+  },
+  remove: () => tone({ freq: 320, type: 'triangle', duration: 0.1, gain: 0.35, sweepTo: 180 }),
+  /** Próba położenia paczki na ostatnim wolnym polu. */
+  blocked: () => tone({ freq: 150, type: 'square', duration: 0.14, gain: 0.3 }),
+  tick: () => tone({ freq: 1200, type: 'square', duration: 0.04, gain: 0.25 }),
+  hurry: () => tone({ freq: 1500, type: 'square', duration: 0.06, gain: 0.45 }),
+  /** Zatwierdzenie — zamek się blokuje. */
+  lock: () => {
+    tone({ freq: 200, type: 'sawtooth', duration: 0.45, gain: 0.4, sweepTo: 90 });
+    tone({ freq: 400, type: 'sine', start: 0.05, duration: 0.35, gain: 0.25 });
+  },
+  /** Napięcie tuż przed otwarciem zapadni. */
+  tension: () => {
+    tone({ freq: 55, type: 'sine', duration: 1.1, gain: 0.5 });
+    [0, 0.45].forEach((s) => tone({ freq: 70, type: 'sine', start: s, duration: 0.22, gain: 0.6 }));
+  },
+  /** Mechanizm zapadni: zgrzyt zasuwy i uderzenie skrzydeł. */
+  doors: () => {
+    tone({ freq: 320, type: 'square', duration: 0.07, gain: 0.35 });
+    noise({ duration: 0.35, gain: 0.4, from: 900, to: 120 });
+    tone({ freq: 90, type: 'sawtooth', start: 0.12, duration: 0.4, gain: 0.55, sweepTo: 45 });
+  },
+  /** Paczki lecą w ciemność — szum opadający razem z nimi. */
+  fall: () => {
+    noise({ duration: 1.1, gain: 0.4, from: 2600, to: 90 });
+    tone({ freq: 260, type: 'sine', duration: 1.0, gain: 0.3, sweepTo: 55 });
+    tone({ freq: 60, type: 'sine', start: 0.85, duration: 0.5, gain: 0.5 });
+  },
+  /** Pieniądze zostały na zapadni. */
+  safe: () => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', start: i * 0.09, duration: 0.35, gain: 0.55 }),
+    );
+  },
+  wrong: () => {
+    tone({ freq: 180, type: 'sawtooth', duration: 0.55, gain: 0.5, sweepTo: 70 });
+    noise({ duration: 0.6, gain: 0.35 });
+  },
+  win: () => {
+    [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', start: i * 0.11, duration: 0.6, gain: 0.6 }),
+    );
+    tone({ freq: 261.63, type: 'sine', start: 0.55, duration: 1.4, gain: 0.4 });
+  },
+  gameOver: () => {
+    [392, 349.23, 293.66, 196].forEach((f, i) =>
+      tone({ freq: f, type: 'sine', start: i * 0.18, duration: 0.6, gain: 0.45 }),
+    );
+  },
+};
+
+function isSoundOn() {
+  return enabled;
+}
+
+function toggleSound() {
+  enabled = !enabled;
+  writeSetting(STORAGE_KEY, enabled ? 'on' : 'off');
+  if (enabled) sfx.grab();
+  return enabled;
+}
+
+/* ===== src/confetti.js ===== */
+/**
+ * Minimalne konfetti na <canvas>. Bez bibliotek, bez zależności.
+ */
+
+const COLORS = ['#ffd76a', '#ffb02e', '#fff3c4', '#7cf7d2', '#8ab6ff', '#ff7ba9'];
+
+function burst(canvas, { count = 180, duration = 4200 } = {}) {
+  if (!canvas) return () => {};
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return () => {};
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const resize = () => {
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+  };
+  resize();
+  window.addEventListener('resize', resize);
+
+  const w = () => canvas.width;
+  const h = () => canvas.height;
+
+  const pieces = Array.from({ length: count }, () => ({
+    x: Math.random() * w(),
+    y: -Math.random() * h() * 0.5,
+    vx: (Math.random() - 0.5) * 2.2 * dpr,
+    vy: (1.4 + Math.random() * 2.6) * dpr,
+    size: (4 + Math.random() * 7) * dpr,
+    spin: (Math.random() - 0.5) * 0.28,
+    angle: Math.random() * Math.PI * 2,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+  }));
+
+  let raf = 0;
+  const started = performance.now();
+
+  const frame = (now) => {
+    const life = now - started;
+    ctx.clearRect(0, 0, w(), h());
+    const fade = Math.max(0, 1 - Math.max(0, life - duration * 0.6) / (duration * 0.4));
+
+    for (const p of pieces) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.02 * dpr;
+      p.angle += p.spin;
+      if (p.y > h() + 20) {
+        p.y = -20;
+        p.x = Math.random() * w();
+      }
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    }
+
+    if (life < duration) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, w(), h());
+    }
+  };
+  raf = requestAnimationFrame(frame);
+
+  return function stop() {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize);
+    ctx.clearRect(0, 0, w(), h());
+  };
+}
+
+/* ===== src/app.js ===== */
+/**
+ * Warstwa prezentacji: łączy silnik gry (src/engine.js) ze sceną w DOM-ie.
+ *
+ * Scena składa się z dwóch warstw ułożonych na tej samej siatce kolumn:
+ *   .floor  — zapadnie odchylone w 3D (perspektywa studia),
+ *   .lanes  — ekrany z odpowiedziami i stosy paczek, w płaszczyźnie ekranu.
+ * Dzięki temu spadające paczki animujemy zwykłym translateY, bez walki
+ * z układem współrzędnych obróconej podłogi.
+ */
+
+
+
+
+
+
+
+const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const BEST_KEY = 'pnm.best';
+
+/** Maksymalna wysokość stosu w pikselach — na zapadni i w rękach. */
+const STACK_HEIGHT = 104;
+const HAND_STACK_HEIGHT = 34;
+
+const money = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
+const zl = (value) => `${money.format(Math.round(value))} zł`;
+const paczki = (n) => `${n} ${n === 1 ? 'paczka' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'paczki' : 'paczek'}`;
+
+const $ = (id) => document.getElementById(id);
+
+const el = {
+  screens: {
+    start: $('screen-start'),
+    game: $('screen-game'),
+    end: $('screen-end'),
+  },
+  best: $('best-score'),
+  seedInput: $('seed-input'),
+  btnStart: $('btn-start'),
+  btnSound: $('btn-sound'),
+  btnRules: $('btn-rules'),
+  rulesDialog: $('rules-dialog'),
+  btnRulesClose: $('btn-rules-close'),
+
+  roundLabel: $('round-label'),
+  balance: $('balance'),
+  timerValue: $('timer-value'),
+  timerRing: $('timer-ring'),
+  timer: $('timer'),
+
+  category: $('q-category'),
+  questionText: $('q-text'),
+  finalHint: $('q-final'),
+
+  stage: $('stage'),
+  floor: $('floor'),
+  lanes: $('lanes'),
+
+  tray: $('tray'),
+  unplaced: $('unplaced'),
+  unplacedCount: $('unplaced-count'),
+  handStack: $('hand-stack'),
+  grabs: $('grabs'),
+  btnUndo: $('btn-undo'),
+  btnClear: $('btn-clear'),
+  btnLock: $('btn-lock'),
+  lockHint: $('lock-hint'),
+
+  reveal: $('reveal'),
+  revealHeadline: $('reveal-headline'),
+  revealDetail: $('reveal-detail'),
+  revealNote: $('reveal-note'),
+  btnNext: $('btn-next'),
+
+  confetti: $('confetti'),
+  endEyebrow: $('end-eyebrow'),
+  endAmount: $('end-amount'),
+  endText: $('end-text'),
+  endSeed: $('end-seed'),
+  summary: $('summary'),
+  btnAgain: $('btn-again'),
+  btnHome: $('btn-home'),
+};
+
+let state = null;
+let grabSize = 1;
+let lanes = [];
+let traps = [];
+let timerId = null;
+let deadline = 0;
+let lastWholeSecond = null;
+let stopConfetti = null;
+let revealTimers = [];
+
+/* ------------------------------------------------------------------ *
+ * Pomocnicze
+ * ------------------------------------------------------------------ */
+
+function showScreen(name) {
+  for (const [key, node] of Object.entries(el.screens)) {
+    node.classList.toggle('is-active', key === name);
+  }
+}
+
+function randomSeed() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+}
+
+function clearRevealTimers() {
+  revealTimers.forEach(clearTimeout);
+  revealTimers = [];
+}
+
+function later(fn, delay) {
+  revealTimers.push(setTimeout(fn, delay));
+}
+
+/** Płynne przeliczanie kwoty na liczniku. */
+function animateMoney(node, from, to, duration = 900) {
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    node.textContent = zl(from + (to - from) * eased);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function readBest() {
+  const raw = Number(readSetting(BEST_KEY, 0));
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
+function refreshBestLabel() {
+  const best = readBest();
+  el.best.textContent = best
+    ? `Twój najlepszy wynik: ${zl(best)}`
+    : 'Jeszcze nie masz wyniku — czas to zmienić.';
+}
+
+/* ------------------------------------------------------------------ *
+ * Stosy paczek
+ * ------------------------------------------------------------------ */
+
+/**
+ * Rysuje stos banknotów o zadanej wartości. Paczki układane są od dołu,
+ * z lekkim, ale powtarzalnym rozchwianiem — żeby stos wyglądał jak ułożony
+ * ręką, a nie wygenerowany.
+ */
+function renderStack(node, amount, laneIndex = 0, fallbackHeight = STACK_HEIGHT) {
+  const count = Math.round(amount / BUNDLE);
+  // wysokość bierzemy z CSS (--stack-max), żeby oba układy — biurkowy
+  // i telefonowy — miały jedno źródło prawdy
+  const declared = parseFloat(getComputedStyle(node).getPropertyValue('--stack-max'));
+  const maxHeight = Number.isFinite(declared) && declared > 0 ? declared : fallbackHeight;
+
+  const key = `${count}:${maxHeight}`;
+  if (node.dataset.stack === key) return;
+  node.dataset.stack = key;
+  node.innerHTML = '';
+
+  const step = count > 0 ? Math.min(7, maxHeight / count) : 0;
+  for (let i = 0; i < count; i++) {
+    const bundle = document.createElement('i');
+    bundle.className = 'bundle';
+    // deterministyczne "rozchwianie" — te same paczki zawsze wyglądają tak samo
+    const wobble = ((i * 37 + laneIndex * 11) % 7) - 3;
+    const tilt = ((i * 53 + laneIndex * 17) % 5) - 2;
+    bundle.style.setProperty('--i', String(i));
+    bundle.style.setProperty('--x', `${wobble}px`);
+    bundle.style.setProperty('--tilt', `${tilt}deg`);
+    bundle.style.setProperty('--drift', `${((i * 29 + laneIndex * 7) % 60) - 30}px`);
+    bundle.style.bottom = `${i * step}px`;
+    node.append(bundle);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Rysowanie rundy
+ * ------------------------------------------------------------------ */
+
+function renderRound() {
+  clearRevealTimers();
+  const question = currentQuestion(state);
+  const doors = question.answers.length;
+
+  el.roundLabel.textContent = `${state.roundIndex + 1} / ${ROUND_COUNT}`;
+  el.category.textContent = question.category;
+  el.questionText.textContent = question.text;
+  el.finalHint.hidden = !question.isFinal;
+
+  el.reveal.hidden = true;
+  el.tray.hidden = false;
+  el.stage.style.setProperty('--doors', String(doors));
+  el.stage.classList.remove('is-revealed');
+
+  // warstwa zapadni
+  el.floor.innerHTML = '';
+  traps = question.answers.map(() => {
+    const trap = document.createElement('div');
+    trap.className = 'trap';
+    trap.innerHTML = `
+      <div class="trap__pit"></div>
+      <div class="trap__flap trap__flap--l"></div>
+      <div class="trap__flap trap__flap--r"></div>
+    `;
+    el.floor.append(trap);
+    return trap;
+  });
+
+  // warstwa ekranów i stosów
+  el.lanes.innerHTML = '';
+  lanes = question.answers.map((answer, index) => {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    lane.dataset.index = String(index);
+    lane.innerHTML = `
+      <button class="lane__hit" type="button" data-act="place" aria-label="Połóż paczki na polu ${LETTERS[index]}"></button>
+      <div class="lane__panel">
+        <span class="lane__letter">${LETTERS[index]}</span>
+        <span class="lane__text"></span>
+      </div>
+      <div class="lane__amount">0 zł</div>
+      <div class="lane__stack"></div>
+      <button class="lane__minus" type="button" data-act="take" title="Zabierz paczkę" aria-label="Zabierz paczkę z pola ${LETTERS[index]}">−</button>
+    `;
+    lane.querySelector('.lane__text').textContent = answer.text;
+    el.lanes.append(lane);
+    return {
+      lane,
+      amount: lane.querySelector('.lane__amount'),
+      stack: lane.querySelector('.lane__stack'),
+      hit: lane.querySelector('.lane__hit'),
+      minus: lane.querySelector('.lane__minus'),
+    };
+  });
+
+  el.balance.textContent = zl(state.balance);
+  renderStakes();
+  startTimer();
+}
+
+function renderGrabs() {
+  const left = unplacedBundles(state);
+  el.grabs.innerHTML = '';
+
+  GRAB_SIZES.forEach((size, i) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'grab';
+    button.dataset.size = String(size);
+    button.disabled = state.status !== 'placing' || left <= 0;
+    button.classList.toggle('is-selected', size === grabSize);
+    button.setAttribute('aria-pressed', String(size === grabSize));
+    button.innerHTML = `
+      <span class="grab__stack" style="--n:${Math.min(size, 4)}"></span>
+      <span class="grab__label">${zl(size * BUNDLE)}</span>
+    `;
+    button.title = `Bierz ${paczki(size)} naraz (klawisz ${i + 1})`;
+    el.grabs.append(button);
+  });
+}
+
+function renderStakes() {
+  const left = unplaced(state);
+
+  lanes.forEach((node, index) => {
+    const value = state.bets[index] ?? 0;
+    node.amount.textContent = value > 0 ? zl(value) : '';
+    node.lane.classList.toggle('has-money', value > 0);
+    node.lane.classList.toggle('is-blocked', !canPlaceOn(state, index));
+    node.hit.disabled = !canPlaceOn(state, index);
+    node.minus.disabled = value <= 0 || state.status !== 'placing';
+    renderStack(node.stack, value, index);
+  });
+
+  renderStack(el.handStack, left, 9, HAND_STACK_HEIGHT);
+  el.unplaced.textContent = zl(left);
+  el.unplacedCount.textContent = left > 0 ? paczki(unplacedBundles(state)) : 'ręce puste';
+  el.unplaced.classList.toggle('is-zero', left === 0);
+
+  const ready = canLock(state);
+  el.btnLock.disabled = !ready;
+  el.btnUndo.disabled = !state.moves.length || state.status !== 'placing';
+  el.btnClear.disabled = left === state.balance || state.status !== 'placing';
+
+  if (ready || state.status !== 'placing') el.lockHint.textContent = '';
+  else if (left > 0) el.lockHint.textContent = 'Rozłóż wszystkie paczki.';
+  else el.lockHint.textContent = 'Jedna zapadnia musi zostać pusta.';
+
+  renderGrabs();
+}
+
+/* ------------------------------------------------------------------ *
+ * Zegar
+ * ------------------------------------------------------------------ */
+
+const RING_LENGTH = 2 * Math.PI * 26;
+
+function startTimer() {
+  stopTimer();
+  const seconds = roundSeconds(state);
+  deadline = performance.now() + seconds * 1000;
+  lastWholeSecond = null;
+  el.timer.classList.remove('is-urgent');
+  el.timerRing.style.strokeDasharray = String(RING_LENGTH);
+  tick(seconds);
+  timerId = setInterval(() => tick(seconds), 100);
+}
+
+function stopTimer() {
+  if (timerId) clearInterval(timerId);
+  timerId = null;
+}
+
+function tick(seconds) {
+  const left = Math.max(0, (deadline - performance.now()) / 1000);
+  const whole = Math.ceil(left);
+
+  el.timerValue.textContent = String(whole);
+  el.timerRing.style.strokeDashoffset = String(RING_LENGTH * (1 - left / seconds));
+  el.timer.classList.toggle('is-urgent', left <= 10);
+
+  if (whole !== lastWholeSecond) {
+    if (lastWholeSecond !== null && whole <= 10 && whole > 0) sfx.hurry();
+    lastWholeSecond = whole;
+  }
+
+  if (left <= 0) {
+    stopTimer();
+    lockIn(true);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Otwieranie zapadni
+ * ------------------------------------------------------------------ */
+
+function lockIn(byTimeout = false) {
+  if (!state || state.status !== 'placing') return;
+  if (!byTimeout && !canLock(state)) return;
+  stopTimer();
+
+  const before = state.balance;
+  state = resolve(state);
+  const { correct, kept, dropped, forfeited } = state.result;
+  const correctSet = new Set(correct);
+
+  el.tray.hidden = true;
+  el.stage.classList.add('is-revealed');
+  lanes.forEach((node) => {
+    node.hit.disabled = true;
+    node.minus.disabled = true;
+  });
+
+  sfx.lock();
+
+  // 1. napięcie — moment ciszy przed otwarciem
+  later(() => sfx.tension(), 250);
+
+  // 2. zapadnie się otwierają
+  later(() => {
+    sfx.doors();
+    traps.forEach((trap, i) => {
+      if (correctSet.has(i)) {
+        trap.classList.add('is-safe');
+        lanes[i].lane.classList.add('is-safe');
+      } else {
+        trap.classList.add('is-open');
+        lanes[i].lane.classList.add('is-doomed');
+      }
+    });
+  }, 1400);
+
+  // 3. paczki lecą w dół
+  later(() => {
+    let anyFell = false;
+    lanes.forEach((node, i) => {
+      if (!correctSet.has(i) && state.bets[i] > 0) {
+        node.stack.classList.add('is-falling');
+        anyFell = true;
+      }
+    });
+    if (anyFell) sfx.fall();
+    if (kept > 0) later(() => sfx.safe(), 500);
+    else later(() => sfx.wrong(), 700);
+    animateMoney(el.balance, before, kept, 1200);
+  }, 1750);
+
+  // 4. podsumowanie rundy
+  later(() => {
+    el.revealHeadline.textContent = kept === 0 ? 'Wszystko przepadło' : `Zostaje ${zl(kept)}`;
+    el.revealHeadline.classList.toggle('is-bad', kept === 0);
+
+    const parts = [];
+    if (kept === 0) parts.push('Cała kwota poleciała w dół.');
+    else if (dropped === 0) parts.push('Ani jedna paczka nie spadła.');
+    else parts.push(`W dół poleciało ${zl(dropped)}.`);
+    if (forfeited > 0) {
+      parts.push(
+        byTimeout
+          ? `Czas minął — ${zl(forfeited)} zostało w rękach i przepadło.`
+          : `${zl(forfeited)} nie trafiło na żadną zapadnię.`,
+      );
+    }
+    el.revealDetail.textContent = parts.join(' ');
+
+    const question = currentQuestion(state);
+    const names = correct.map((i) => `${LETTERS[i]}: ${question.answers[i].text}`).join(' • ');
+    el.revealNote.textContent = `Poprawna odpowiedź — ${names}. ${question.note ?? ''}`.trim();
+
+    el.btnNext.textContent = state.outcome === 'continue' ? 'Następne pytanie' : 'Podsumowanie';
+    el.reveal.hidden = false;
+    el.btnNext.focus();
+  }, 2900);
+}
+
+function goNext() {
+  clearRevealTimers();
+  state = advance(state);
+  if (state.status === 'over') showEnd();
+  else renderRound();
+}
+
+/* ------------------------------------------------------------------ *
+ * Ekran końcowy
+ * ------------------------------------------------------------------ */
+
+function showEnd() {
+  stopTimer();
+  const won = state.balance > 0;
+  const jackpot = state.balance >= START_BALANCE;
+
+  if (state.balance > readBest()) writeSetting(BEST_KEY, state.balance);
+  refreshBestLabel();
+
+  el.endEyebrow.textContent = jackpot
+    ? 'MILION!'
+    : won
+      ? `Koniec gry po ${ROUND_COUNT} pytaniach`
+      : `Koniec gry w rundzie ${state.history.length}`;
+  el.endAmount.textContent = zl(state.balance);
+  el.endAmount.classList.toggle('is-bad', !won);
+  el.endText.textContent = jackpot
+    ? 'Osiem pytań, ani jedna paczka w dół. Lepiej się nie da.'
+    : won
+      ? 'To, co zostało na zapadni, jedzie do domu.'
+      : 'Wszystkie zapadnie się otworzyły. Następnym razem warto rozłożyć paczki szerzej.';
+  el.endSeed.textContent = `Kod tej gry: ${state.seed}`;
+
+  el.summary.innerHTML = '';
+  state.history.forEach((row) => {
+    const item = document.createElement('li');
+    item.className = row.kept > 0 ? 'summary__row' : 'summary__row is-bad';
+    item.innerHTML = `
+      <span class="summary__round">Runda ${row.round}</span>
+      <span class="summary__kept">${zl(row.kept)}</span>
+      <span class="summary__lost${row.dropped > 0 ? '' : ' is-none'}">${
+        row.dropped > 0 ? `−${zl(row.dropped)}` : '—'
+      }</span>
+    `;
+    el.summary.append(item);
+  });
+
+  showScreen('end');
+  if (stopConfetti) stopConfetti();
+  if (won) {
+    sfx.win();
+    stopConfetti = burst(el.confetti, { count: jackpot ? 260 : 150 });
+  } else {
+    sfx.gameOver();
+  }
+  el.btnAgain.focus();
+}
+
+/* ------------------------------------------------------------------ *
+ * Sterowanie
+ * ------------------------------------------------------------------ */
+
+function startGame(seed) {
+  clearRevealTimers();
+  if (stopConfetti) {
+    stopConfetti();
+    stopConfetti = null;
+  }
+  state = createGame({ questions: QUESTIONS, seed: seed || randomSeed() });
+  grabSize = 1;
+  showScreen('game');
+  renderRound();
+}
+
+function putOn(index, all = false) {
+  if (!canPlaceOn(state, index)) {
+    sfx.blocked();
+    return;
+  }
+  state = all ? placeRest(state, index) : placeBundles(state, index, grabSize);
+  sfx.place();
+  const node = lanes[index];
+  node.lane.classList.remove('is-bumped');
+  void node.lane.offsetWidth;
+  node.lane.classList.add('is-bumped');
+  renderStakes();
+}
+
+function onLaneClick(event) {
+  const button = event.target.closest('button[data-act]');
+  if (!button || state?.status !== 'placing') return;
+  const index = Number(button.closest('.lane').dataset.index);
+
+  if (button.dataset.act === 'place') {
+    putOn(index, event.shiftKey);
+  } else if (button.dataset.act === 'take') {
+    if (!state.bets[index]) return;
+    state = take(state, index, Math.min(grabSize * BUNDLE, state.bets[index]));
+    sfx.remove();
+    renderStakes();
+  }
+}
+
+function onGrabClick(event) {
+  const button = event.target.closest('.grab');
+  if (!button || button.disabled) return;
+  grabSize = Number(button.dataset.size);
+  sfx.grab();
+  renderGrabs();
+}
+
+function onKeyDown(event) {
+  if (event.target.matches('input, textarea')) return;
+  if (el.rulesDialog.open || !state) return;
+
+  if (state.status === 'revealed' && !el.reveal.hidden && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    goNext();
+    return;
+  }
+  if (state.status !== 'placing') return;
+
+  const digit = Number(event.key);
+  if (digit >= 1 && digit <= GRAB_SIZES.length) {
+    grabSize = GRAB_SIZES[digit - 1];
+    sfx.grab();
+    renderGrabs();
+    return;
+  }
+
+  const letter = LETTERS.indexOf(event.key.toUpperCase());
+  if (letter >= 0 && letter < state.bets.length) {
+    event.preventDefault();
+    putOn(letter, event.shiftKey);
+    return;
+  }
+
+  if (event.key === 'Backspace') {
+    event.preventDefault();
+    state = undo(state);
+    sfx.remove();
+    renderStakes();
+  } else if (event.key === 'Enter' && canLock(state)) {
+    event.preventDefault();
+    lockIn();
+  }
+}
+
+function syncSoundButton() {
+  const on = isSoundOn();
+  el.btnSound.textContent = on ? '🔊 Dźwięk' : '🔇 Cisza';
+  el.btnSound.setAttribute('aria-pressed', String(on));
+}
+
+/* ------------------------------------------------------------------ *
+ * Podpięcie zdarzeń
+ * ------------------------------------------------------------------ */
+
+el.lanes.addEventListener('click', onLaneClick);
+el.grabs.addEventListener('click', onGrabClick);
+el.btnLock.addEventListener('click', () => lockIn(false));
+el.btnNext.addEventListener('click', goNext);
+el.btnUndo.addEventListener('click', () => {
+  state = undo(state);
+  sfx.remove();
+  renderStakes();
+});
+el.btnClear.addEventListener('click', () => {
+  state = clearBets(state);
+  sfx.remove();
+  renderStakes();
+});
+
+el.btnStart.addEventListener('click', () => startGame(el.seedInput.value.trim()));
+el.seedInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startGame(el.seedInput.value.trim());
+});
+el.btnAgain.addEventListener('click', () => startGame(''));
+el.btnHome.addEventListener('click', () => {
+  clearRevealTimers();
+  if (stopConfetti) stopConfetti();
+  stopTimer();
+  refreshBestLabel();
+  showScreen('start');
+});
+
+el.btnSound.addEventListener('click', () => {
+  toggleSound();
+  syncSoundButton();
+});
+el.btnRules.addEventListener('click', () => el.rulesDialog.showModal());
+el.btnRulesClose.addEventListener('click', () => el.rulesDialog.close());
+
+document.addEventListener('keydown', onKeyDown);
+
+// Gdy karta zejdzie na drugi plan, zatrzymujemy odliczanie — inaczej gracz
+// wracałby do gry z zerowym zegarem.
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (!state || state.status !== 'placing') return;
+  if (document.hidden) {
+    hiddenAt = performance.now();
+    stopTimer();
+  } else if (hiddenAt) {
+    deadline += performance.now() - hiddenAt;
+    hiddenAt = 0;
+    timerId = setInterval(() => tick(roundSeconds(state)), 100);
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Start
+ * ------------------------------------------------------------------ */
+
+const seedFromUrl = new URLSearchParams(location.search).get('kod');
+if (seedFromUrl) el.seedInput.value = seedFromUrl;
+syncSoundButton();
+refreshBestLabel();
+showScreen('start');
+
+// `emptyDoors` przydaje się przy diagnozie w konsoli przeglądarki
+window.__pnm = { get state() { return state; }, emptyDoors: () => emptyDoors(state) };
+})();
+</script>
+  </body>
+</html>

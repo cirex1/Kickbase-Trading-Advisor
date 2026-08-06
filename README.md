@@ -25,19 +25,30 @@ Kein Build-Schritt, keine Abhängigkeiten, kein Framework — nur HTML, CSS und 
 
 Zeitlimit pro Runde: 90 s zu Beginn, 50 s im Finale.
 
-## Starten
+## Spielen
 
-Das Spiel nutzt ES-Module, deshalb braucht es einen HTTP-Server — ein Doppelklick auf
-`index.html` reicht nicht (Browser blockieren Module über `file://`).
+**Am schnellsten:** `dist/postaw-na-milion.html` herunterladen und doppelklicken. Die Datei
+enthält alles — Markup, Styles, Logik, Fragen, Sounds — und läuft ohne Server und ohne
+Internet.
+
+**Aus den Quellen:** `index.html` nutzt ES-Module, die Browser über `file://` blockieren.
+Hier braucht es also einen HTTP-Server:
 
 ```bash
-# irgendein statischer Server, z. B.
-python3 -m http.server 8080
-# oder
-npx http-server -p 8080
+python3 -m http.server 8080     # oder: npx http-server -p 8080
 ```
 
 Dann `http://localhost:8080` öffnen.
+
+**Einzeldatei neu bauen** — nach jeder Änderung an `src/` oder am CSS:
+
+```bash
+npm run build
+```
+
+Das Skript `tools/build-single.mjs` fügt Stylesheet und Module in `index.html` ein und
+schreibt `dist/postaw-na-milion.html`. Es ist Bequemlichkeit, keine Voraussetzung: Bearbeitet
+werden weiterhin die Dateien in `src/`.
 
 ## Tests
 
@@ -54,14 +65,17 @@ der Zwei-Türen-Finalmodus und die Reproduzierbarkeit über den Spielcode.
 ## Projektstruktur
 
 ```
-index.html              Grundgerüst, alle drei Screens (Start / Spiel / Ende)
-assets/css/style.css    komplettes Styling inkl. der 3D-Bühne mit den Falltüren
-src/engine.js           Spiellogik: Bündel, Einsätze, Abrechnung (pure functions)
-src/questions.js        Fragenkatalog
-src/app.js              Verbindung Logik ↔ DOM, Timer, Falltür-Choreografie, Tastatur
-src/audio.js            Sounds, komplett per Web Audio API erzeugt (keine Dateien)
-src/confetti.js         Konfetti auf dem Endscreen
-tests/engine.test.js    Tests der Spiellogik
+index.html                  Grundgerüst, alle drei Screens (Start / Spiel / Ende)
+assets/css/style.css        komplettes Styling inkl. der 3D-Bühne mit den Falltüren
+src/engine.js               Spiellogik: Bündel, Einsätze, Abrechnung (pure functions)
+src/questions.js            Fragenkatalog
+src/app.js                  Verbindung Logik ↔ DOM, Timer, Falltür-Choreografie, Tastatur
+src/audio.js                Sounds, komplett per Web Audio API erzeugt (keine Dateien)
+src/confetti.js             Konfetti auf dem Endscreen
+src/storage.js              gekapselter localStorage-Zugriff (Privatmodus wirft sonst)
+tools/build-single.mjs      baut die Einzeldatei
+tests/engine.test.js        Tests der Spiellogik
+dist/postaw-na-milion.html  gebaute Einzeldatei (generiert)
 ```
 
 ### Wie die Bühne aufgebaut ist

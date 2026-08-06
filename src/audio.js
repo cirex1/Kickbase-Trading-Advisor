@@ -4,11 +4,13 @@
  * blokują dźwięk bez interakcji użytkownika.
  */
 
+import { readSetting, writeSetting } from './storage.js';
+
 const STORAGE_KEY = 'pnm.sound';
 
 let ctx = null;
 let master = null;
-let enabled = localStorage.getItem(STORAGE_KEY) !== 'off';
+let enabled = readSetting(STORAGE_KEY) !== 'off';
 
 function ensureContext() {
   if (ctx) return ctx;
@@ -137,7 +139,7 @@ export function isSoundOn() {
 
 export function toggleSound() {
   enabled = !enabled;
-  localStorage.setItem(STORAGE_KEY, enabled ? 'on' : 'off');
+  writeSetting(STORAGE_KEY, enabled ? 'on' : 'off');
   if (enabled) sfx.grab();
   return enabled;
 }
