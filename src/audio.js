@@ -88,6 +88,18 @@ export const sfx = {
     tone({ freq: 660, type: 'triangle', duration: 0.1, gain: 0.45 });
     tone({ freq: 990, type: 'triangle', start: 0.08, duration: 0.22, gain: 0.4 });
   },
+  /** Kolejna odpowiedź zapala się na ekranie — lekki, wznoszący sygnał. */
+  answer: () => {
+    tone({ freq: 523.25, type: 'triangle', duration: 0.09, gain: 0.34 });
+    tone({ freq: 784, type: 'sine', start: 0.06, duration: 0.18, gain: 0.26 });
+  },
+  /** Pada pytanie. Cięższe od odpowiedzi, bo zaraz po nim rusza zegar. */
+  question: () => {
+    tone({ freq: 147, type: 'sine', duration: 0.5, gain: 0.45 });
+    [440, 587.33].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', start: i * 0.09, duration: 0.3, gain: 0.32 }),
+    );
+  },
   /** Chwycenie pliku paczek. */
   grab: () => tone({ freq: 880, type: 'triangle', duration: 0.09, gain: 0.5 }),
   /** Paczka ląduje na zapadni — krótkie, papierowe klapnięcie. */

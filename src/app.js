@@ -9,6 +9,11 @@
  *
  * Runda ma trzy odsłony: plansza z kategoriami, pytanie z rozkładaniem paczek
  * i otwieranie zapadni — jedna po drugiej, w kolejności, którą wyznacza silnik.
+ *
+ * Środkowa odsłona zaczyna się tak jak w teleturnieju: najpierw zapalają się
+ * po kolei same odpowiedzi, a pytanie pada dopiero na końcu. Gracz przez
+ * chwilę patrzy na cztery hasła, nie wiedząc jeszcze, o co właściwie chodzi —
+ * i to jest cała sól tego momentu.
  */
 
 import {
@@ -48,15 +53,30 @@ const BEST_KEY = 'pnm.best';
 const STACK_HEIGHT = 104;
 const HAND_STACK_HEIGHT = 34;
 
-/** Rytm otwierania zapadni (ms). */
+/** Rytm odsłon (ms). */
 const BEAT = {
   bumper: 1500,
+  intro: 900, // od zapowiedzi „oto odpowiedzi” do pierwszej z nich
+  beforeQuestion: 850, // cisza po ostatniej odpowiedzi, zanim padnie pytanie
   tension: 1500, // cisza po zatwierdzeniu
   spotlight: 420, // podświetlenie pola tuż przed otwarciem
   emptyDoor: 900, // pusta zapadnia — otwiera się i nic nie spada
   loadedDoor: 1800, // zapadnia z pieniędzmi — paczki muszą dolecieć
   finish: 1300, // od poprawnej zapadni do podsumowania
 };
+
+/**
+ * Ile mniej więcej trwa przeczytanie linijki.
+ *
+ * Lektor nie zgłasza postępu, więc rytm odsłaniania odpowiedzi opieramy na
+ * długości tekstu: krótkie „B. Dwa” nie każe czekać tyle samo co całe zdanie.
+ * Bez lektora tempo jest wyraźnie szybsze — oczami czyta się prędzej niż
+ * ustami, a cisza dłuży się bardziej niż mowa.
+ */
+function readingTime(text) {
+  const spoken = Math.min(2800, Math.max(1150, 650 + String(text).length * 78));
+  return lektor.isOn() ? spoken : Math.round(spoken * 0.62);
+}
 
 const money = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
 const zl = (value) => `${money.format(Math.round(value))} zł`;
@@ -138,8 +158,13 @@ let lastWholeSecond = null;
 let stopConfetti = null;
 let timers = [];
 let shownBalance = START_BALANCE;
-/** Kroki otwierania zapadni — trzymamy je, żeby dało się je przewinąć. */
-let revealSteps = [];
+/**
+ * Kolejka kroków odsłony — prezentacji odpowiedzi albo otwierania zapadni.
+ * Trzymamy ją w całości, żeby dało się ją przewinąć jednym przyciskiem.
+ */
+let steps = [];
+/** Czy trwa prezentacja odpowiedzi — wtedy paczek jeszcze się nie kładzie. */
+let presenting = false;
 
 /* ------------------------------------------------------------------ *
  * Pomocnicze
@@ -163,6 +188,45 @@ function clearTimers() {
 
 function later(fn, delay) {
   timers.push(setTimeout(fn, delay));
+}
+
+/* ------------------------------------------------------------------ *
+ * Kolejka kroków
+ * ------------------------------------------------------------------ */
+
+/**
+ * Odsłony układamy z góry, jako listę kroków z odstępami. Dzięki temu
+ * „przewiń” po prostu wykonuje wszystko, co zostało, zamiast osobno
+ * odtwarzać całą sekwencję po raz drugi.
+ */
+function runSteps(list) {
+  steps = list;
+  runNextStep();
+}
+
+/**
+ * Krok zostaje w kolejce aż do chwili, w której naprawdę się wykona. Gdyby
+ * znikał z niej już w momencie zaplanowania, „przewiń” skasowałoby jego
+ * odliczanie i nikt by go nie wykonał — jedna odpowiedź przepadłaby bez śladu.
+ */
+function runNextStep() {
+  const step = steps[0];
+  if (!step) return;
+  later(() => {
+    steps.shift();
+    step.run();
+    runNextStep();
+  }, step.wait);
+}
+
+/** Wykonuje wszystko, co zostało w kolejce, bez czekania. */
+function flushSteps() {
+  if (!steps.length) return;
+  clearTimers();
+  lektor.stop();
+  const rest = steps;
+  steps = [];
+  rest.forEach((step) => step.run());
 }
 
 /** Płynne przeliczanie kwoty na liczniku. */
@@ -356,25 +420,83 @@ function renderQuestion() {
   el.choice.hidden = true;
   el.question.hidden = false;
   el.category.textContent = question.label ?? question.category;
-  el.questionText.textContent = question.text;
   el.finalHint.hidden = !question.isFinal;
 
+  // Treść pytania jest już w układzie, tylko niewidoczna. Zajmuje docelową
+  // wysokość, więc w chwili, gdy padnie, scena nie podskoczy.
+  el.questionText.textContent = question.text;
+  el.question.classList.add('is-teasing');
+
   el.stage.classList.remove('is-idle');
-  lanes.forEach((node, index) => {
-    node.text.textContent = question.answers[index].text;
+  el.tray.hidden = true;
+  el.reveal.hidden = true;
+  lanes.forEach((node) => {
+    node.text.textContent = '';
+    node.lane.classList.add('is-dark');
+    node.lane.classList.remove('is-lit');
   });
 
-  el.tray.hidden = false;
-  el.reveal.hidden = true;
-  el.waiting.hidden = true;
-  renderStakes();
-  startTimer();
-
+  // zapowiedź idzie od razu, żeby pasek na dole nie zdążył mrugnąć starą treścią
+  presenting = true;
+  el.waiting.hidden = false;
+  el.waitingText.textContent = 'Najpierw odpowiedzi. Pytanie za chwilę.';
+  el.btnSkip.textContent = 'Od razu pytanie';
   lektor.say([
-    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 600 }] : []),
-    { text: question.spoken ?? question.text, rate: 0.93, pauseAfter: 700 },
-    ...answerLines(question),
+    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 500 }] : []),
+    { text: 'Oto odpowiedzi.' },
   ]);
+
+  runSteps(presentationSteps(question));
+}
+
+/**
+ * Odpowiedzi pojedynczo, pytanie na końcu.
+ *
+ * Odstęp przed każdą kolejną odpowiedzią wynika z długości poprzedniej —
+ * lektor zdąży ją doczytać, a przy wyłączonym lektorze tempo i tak pasuje
+ * do czytania oczami.
+ */
+function presentationSteps(question) {
+  const spoken = question.answers.map((a, i) => `${LETTERS[i]}. ${a.spoken ?? a.text}`);
+  const list = [];
+
+  question.answers.forEach((answer, index) => {
+    list.push({
+      wait:
+        index === 0 ? BEAT.intro + (question.isFinal ? 900 : 0) : readingTime(spoken[index - 1]),
+      run: () => {
+        lanes[index].text.textContent = answer.text;
+        lanes[index].lane.classList.remove('is-dark');
+        lanes[index].lane.classList.add('is-lit');
+        // pasek jest obszarem aria-live: bez tego czytnik ekranu nie dowie się,
+        // że na scenie właśnie coś się zapaliło
+        el.waitingText.textContent = `${LETTERS[index]}. ${answer.text}`;
+        sfx.answer();
+        lektor.say({ text: spoken[index], rate: 0.92 });
+      },
+    });
+  });
+
+  list.push({
+    wait: readingTime(spoken[spoken.length - 1]) + BEAT.beforeQuestion,
+    run: () => {
+      presenting = false;
+      el.question.classList.remove('is-teasing');
+      el.waiting.hidden = true;
+      el.btnSkip.textContent = 'Pokaż wynik';
+      lanes.forEach((node) => node.lane.classList.remove('is-lit'));
+      sfx.question();
+
+      // Zegar rusza dokładnie wtedy, gdy pytanie jest na ekranie — czytanie
+      // odpowiedzi nie zjada rundy, ale i nie ma minuty na darmowy namysł.
+      el.tray.hidden = false;
+      renderStakes();
+      startTimer();
+      lektor.say({ text: question.spoken ?? question.text, rate: 0.93 });
+    },
+  });
+
+  return list;
 }
 
 function renderGrabs() {
@@ -483,7 +605,7 @@ function tick(seconds) {
  * ------------------------------------------------------------------ */
 
 function lockIn(byTimeout = false) {
-  if (!state || state.status !== 'placing') return;
+  if (!state || state.status !== 'placing' || presenting) return;
   if (!byTimeout && !canLock(state)) return;
   idleTimer();
   clearTimers();
@@ -505,15 +627,13 @@ function lockIn(byTimeout = false) {
 
   sfx.lock();
 
-  // Kroki układamy z góry — dzięki temu „Pokaż wynik” po prostu wykonuje
-  // wszystkie pozostałe naraz, zamiast osobno odtwarzać całą sekwencję.
   let running = state.result.balanceBefore;
-  revealSteps = [];
+  const list = [];
 
   if (forfeited > 0) {
     running -= forfeited;
     const to = running;
-    revealSteps.push({
+    list.push({
       wait: BEAT.tension,
       run: () => {
         sfx.fall();
@@ -528,7 +648,7 @@ function lockIn(byTimeout = false) {
     const isCorrect = correctSet.has(index);
     const isFirst = position === 0 && forfeited === 0;
 
-    revealSteps.push({
+    list.push({
       wait: isFirst ? BEAT.tension : BEAT.spotlight,
       run: () => {
         lanes[index].lane.classList.add('is-next');
@@ -537,7 +657,7 @@ function lockIn(byTimeout = false) {
     });
 
     if (isCorrect) {
-      revealSteps.push({
+      list.push({
         wait: BEAT.spotlight,
         run: () => {
           lanes[index].lane.classList.remove('is-next');
@@ -552,7 +672,7 @@ function lockIn(byTimeout = false) {
     } else {
       if (stake > 0) running -= stake;
       const to = running;
-      revealSteps.push({
+      list.push({
         wait: stake > 0 ? BEAT.loadedDoor : BEAT.emptyDoor,
         run: () => {
           lanes[index].lane.classList.remove('is-next');
@@ -572,27 +692,8 @@ function lockIn(byTimeout = false) {
     }
   });
 
-  revealSteps.push({ wait: BEAT.finish, run: showRoundSummary });
-  runNextStep();
-}
-
-function runNextStep() {
-  const step = revealSteps.shift();
-  if (!step) return;
-  later(() => {
-    step.run();
-    runNextStep();
-  }, step.wait);
-}
-
-/** „Pokaż wynik” — wykonuje wszystko, co zostało, bez czekania. */
-function skipReveal() {
-  if (!revealSteps.length) return;
-  clearTimers();
-  lektor.stop();
-  const rest = revealSteps;
-  revealSteps = [];
-  rest.forEach((step) => step.run());
+  list.push({ wait: BEAT.finish, run: showRoundSummary });
+  runSteps(list);
 }
 
 function showRoundSummary() {
@@ -634,7 +735,8 @@ function showRoundSummary() {
 function goNext() {
   clearTimers();
   lektor.stop();
-  revealSteps = [];
+  steps = [];
+  presenting = false;
   state = advance(state);
   if (state.status === 'over') showEnd();
   else renderChoice();
@@ -700,7 +802,8 @@ function showEnd() {
 function startGame(seed) {
   clearTimers();
   lektor.unlock(); // pierwsze `speak()` musi wyjść z gestu użytkownika
-  revealSteps = [];
+  steps = [];
+  presenting = false;
   if (stopConfetti) {
     stopConfetti();
     stopConfetti = null;
@@ -712,6 +815,7 @@ function startGame(seed) {
 }
 
 function putOn(index, all = false) {
+  if (presenting) return; // pytania jeszcze nie było
   if (!canPlaceOn(state, index)) {
     sfx.blocked();
     return;
@@ -765,12 +869,22 @@ function onKeyDown(event) {
   if (state.status === 'revealed') {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      if (revealSteps.length) skipReveal();
+      if (steps.length) flushSteps();
       else if (!el.reveal.hidden) goNext();
     }
     return;
   }
   if (state.status !== 'placing') return;
+
+  // Trwa prezentacja odpowiedzi: nic jeszcze nie kładziemy, można ją tylko
+  // przewinąć do pytania.
+  if (presenting) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      flushSteps();
+    }
+    return;
+  }
 
   const digit = Number(event.key);
   if (digit >= 1 && digit <= GRAB_SIZES.length) {
@@ -841,14 +955,6 @@ async function setUpVoices() {
   syncVoiceButton();
 }
 
-/** Litera pola plus treść odpowiedzi — tak, jak czyta je prowadzący. */
-function answerLines(question) {
-  return question.answers.map((answer, i) => ({
-    text: `${LETTERS[i]}. ${answer.spoken ?? answer.text}`,
-    pauseAfter: 220,
-  }));
-}
-
 function syncSoundButton() {
   const on = isSoundOn();
   el.btnSound.textContent = on ? '🔊 Dźwięk' : '🔇 Cisza';
@@ -866,7 +972,7 @@ el.choiceCards.addEventListener('click', (event) => {
 el.lanes.addEventListener('click', onLaneClick);
 el.grabs.addEventListener('click', onGrabClick);
 el.btnLock.addEventListener('click', () => lockIn(false));
-el.btnSkip.addEventListener('click', skipReveal);
+el.btnSkip.addEventListener('click', flushSteps);
 el.btnNext.addEventListener('click', goNext);
 el.btnUndo.addEventListener('click', () => {
   state = undo(state);
@@ -887,7 +993,8 @@ el.btnAgain.addEventListener('click', () => startGame(''));
 el.btnHome.addEventListener('click', () => {
   clearTimers();
   lektor.stop();
-  revealSteps = [];
+  steps = [];
+  presenting = false;
   if (stopConfetti) stopConfetti();
   stopTimer();
   refreshBestLabel();
@@ -917,7 +1024,9 @@ document.addEventListener('keydown', onKeyDown);
 // wracałby do gry z zerowym zegarem.
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (!state || state.status !== 'placing') return;
+  // W trakcie prezentacji odpowiedzi zegar jeszcze nie chodzi — nie ma czego
+  // wznawiać, a wznowienie ruszyłoby odliczanie od nieistniejącego terminu.
+  if (!state || state.status !== 'placing' || presenting) return;
   if (document.hidden) {
     hiddenAt = performance.now();
     stopTimer();
@@ -944,6 +1053,6 @@ window.__pnm = {
   get state() {
     return state;
   },
-  skipReveal,
+  skip: flushSteps,
   lektor,
 };
