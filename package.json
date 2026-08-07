@@ -7,7 +7,9 @@
   "scripts": {
     "test": "node --test \"tests/**/*.test.js\"",
     "start": "python3 -m http.server 8080",
-    "build": "node tools/build-single.mjs"
+    "build": "node tools/build-single.mjs && node tools/build-studio.mjs",
+    "build:gra": "node tools/build-single.mjs",
+    "build:nagrywarka": "node tools/build-studio.mjs"
   },
   "keywords": ["gra", "teleturniej", "quiz", "postaw-na-milion"],
   "license": "MIT"

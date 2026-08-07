@@ -5385,8 +5385,15 @@ __mod['src/voicepack.js'] = (function () {
  * do głosu systemowego. Brak nagrań nigdy nie jest błędem.
  */
 
-/** Gdzie szukać pakietu. Pierwsza pasująca ścieżka wygrywa. */
-const CANDIDATES = ['assets/voice/pack.js', '../assets/voice/pack.js', 'voice/pack.js'];
+/**
+ * Gdzie szukać pakietu — pierwsza pasująca ścieżka wygrywa. Druga jest dla
+ * wersji jednoplikowej uruchamianej z `dist/`, gdy pakiet został przy źródłach.
+ *
+ * Gdy pakietu nie ma, konsola przeglądarki zapisze „ERR_FILE_NOT_FOUND”. To nie
+ * jest usterka, tylko jedyny sposób, w jaki da się sprawdzić obecność pliku
+ * spod file:// — fetch jest tam zablokowany.
+ */
+const CANDIDATES = ['assets/voice/pack.js', '../assets/voice/pack.js'];
 
 let pack = null;
 let format = 'audio/mpeg';
@@ -5455,14 +5462,24 @@ function load() {
   return loading;
 }
 
+/**
+ * Kwestia bywa zapisana na dwa sposoby. Syntezator oddaje same dane, bo
+ * wszystkie nagrania mają ten sam format. Nagrywarka dokłada do każdej własny
+ * typ — bo przeglądarki nagrywają w czym innym, a do tego wolno dorzucić pliki
+ * z dysku, więc w jednym pakiecie potrafi być i webm, i mp3.
+ */
 function urlFor(key) {
   if (!has(key)) return null;
   if (urls.has(key)) return urls.get(key);
   try {
-    const binary = atob(pack[key]);
+    const entry = pack[key];
+    const data = typeof entry === 'string' ? entry : entry.d;
+    const type = (typeof entry === 'string' ? format : entry.t) || format;
+
+    const binary = atob(data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([bytes], { type: format }));
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
     urls.set(key, url);
     return url;
   } catch {

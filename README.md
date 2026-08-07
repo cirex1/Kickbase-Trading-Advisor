@@ -69,8 +69,17 @@ rechnen allerdings in der Cloud. Deshalb sortiert `score()` neuronale Stimmen ga
 und wählt sie als Standard; wer offline spielen will, stellt im Regel-Dialog um. Der Hinweis
 unter der Liste sagt, was gerade gilt.
 
-**Eigene Aufnahmen, offline.** `tools/voice-build.mjs` nimmt jede Zeile einmal auf (ElevenLabs
-oder Piper) und legt sie als `assets/voice/pack.js` ab. Danach lädt nichts mehr nach.
+**Eigene Aufnahmen, offline.** Zwei Wege zum selben Paket:
+
+* `tools/voice-build.mjs` synthetisiert jede Zeile (ElevenLabs oder Piper) — braucht Node.js.
+* `npm run build:nagrywarka` baut `dist/nagrywarka.html`: eine Seite zum Doppelklicken, die
+  Satz für Satz über das Mikrofon aufnimmt, den Fortschritt in IndexedDB hält und am Ende
+  `pack.js` als Download ausspuckt. Keine Installation, keine Kosten, kein einziger
+  Netzwerkzugriff. Wenn der Browser das Mikrofon verweigert, nimmt sie auch fertige Dateien
+  entgegen, benannt nach dem Zeilenschlüssel.
+
+Beide Werkzeuge ziehen die Zeilenliste aus `tools/lines.mjs` — die Schlüssel müssen zeichen-
+genau zu denen passen, die `src/app.js` anfragt, deshalb gibt es sie nur einmal.
 
 ### Wie die Aufnahmen ins Spiel kommen
 
@@ -164,10 +173,14 @@ src/storage.js              gekapselter localStorage-Zugriff (Privatmodus wirft 
 src/lektor.js               Sprecher: Aufnahme wenn vorhanden, sonst Synthesizer
 src/voicepack.js            lädt und spielt das Aufnahmepaket
 src/speech.js               Systemstimmen (Web Speech API), Auswahl und Rangfolge
+tools/lines.mjs             Liste aller Sprecherzeilen samt Schlüsseln (eine Quelle)
 tools/build-single.mjs      baut die Einzeldatei
-tools/voice-build.mjs       nimmt den Sprecher auf und packt ihn (läuft einmal, lokal)
+tools/voice-build.mjs       synthetisiert den Sprecher und packt ihn (einmal, lokal)
+tools/build-studio.mjs      baut die Aufnahme-Seite
+tools/studio.js             deren Logik: Mikrofon, IndexedDB, Export
 tests/engine.test.js        Tests der Spiellogik
 dist/postaw-na-milion.html  gebaute Einzeldatei (generiert)
+dist/nagrywarka.html        Aufnahme-Seite (generiert)
 assets/voice/pack.js        Aufnahmen (nicht im Repo — entsteht lokal, s. o.)
 ```
 

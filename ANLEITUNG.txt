@@ -26,9 +26,9 @@ klingt, hängt davon ab, welche Stufe du nimmst.
   Stufe 2   Eine neuronale Stimme des Browsers — kostenlos, kein Konto,
   (2 Min.)   und ein enormer Unterschied. Siehe unten.
 
-  Stufe 3   Echte Aufnahmen von ElevenLabs. Klingt wie ein echter
-  (Kaffee-   Moderator. Einmal aufnehmen, danach für immer offline.
-   pause)    Siehe Abschnitt 3.
+  Stufe 3   Echte Aufnahmen — entweder von ElevenLabs (Abschnitt 3)
+  (Kaffee-   oder mit deiner eigenen Stimme (Abschnitt 4).
+   pause)    Einmal aufnehmen, danach für immer offline.
 
 
 STUFE 2: BESSERE STIMME IN 2 MINUTEN, KOSTENLOS
@@ -107,6 +107,52 @@ erscheint dann "Gra mówi nagraniami lektora (… kwestii)".
 
 Fehlt eine einzelne Aufnahme, springt für genau diesen Satz die
 Systemstimme ein. Nichts geht kaputt.
+
+
+4. MIT DER EIGENEN STIMME
+-------------------------
+
+    dist/nagrywarka.html   →   doppelklicken
+
+Eine Seite, ein Satz nach dem anderen, Leertaste drücken und sprechen.
+Kein Konto, keine Installation, keine Kosten. Nichts verlässt deinen
+Rechner — die Seite stellt keine einzige Anfrage ins Internet.
+
+  Leertaste   aufnehmen / stoppen
+  P           anhören
+  R           nochmal (löscht den Versuch)
+  Enter       weiter
+
+Die Sätze sind in vier Gruppen aufgeteilt:
+
+  Prowadzący    32 Sätze   die Moderatorsätze — die hört man in JEDER
+                           Runde. Das ist die Viertelstunde mit dem
+                           größten Effekt. Fang hier an.
+  Hasła        172 Sätze   die Begriffe auf der Tafel
+  Pytania      172 Sätze   die Fragen
+  Odpowiedzi   688 Sätze   alle Antwortmöglichkeiten
+
+Zusammen gut tausend Sätze — das muss niemand am Stück machen. Was
+fehlt, liest weiterhin die Computerstimme. Der Fortschritt bleibt im
+Browser gespeichert, auch wenn du das Fenster schließt.
+
+Fertig? "pack.js speichern" drücken, die Datei aus dem Download-Ordner
+nach dist/assets/voice/pack.js legen. Ob es geklappt hat, steht im
+Spiel unter "Zasady".
+
+Später weitermachen: die Nagrywarka öffnen, "pack.js laden", und sie
+springt zum ersten fehlenden Satz.
+
+FALLS DER BROWSER DAS MIKROFON NICHT FREIGIBT
+(kann bei per Doppelklick geöffneten Dateien passieren, bei Safari
+immer): mit irgendeinem Programm aufnehmen — Sprachmemo, Audacity,
+Windows-Sprachrekorder. Jede Datei bekommt den Namen des grauen
+Schlüssels, der unter dem Satz steht, Doppelpunkte werden zu __ :
+
+    geo-wawel__tresc.mp3
+
+Dann in der Nagrywarka auf "Dateien einlesen" und alle auf einmal
+auswählen. Der Rest ist gleich.
 
 
 OHNE KONTO, DAFÜR MIT GEDULD

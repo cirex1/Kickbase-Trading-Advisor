@@ -48,6 +48,8 @@ import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { MOOD, collectLines, fileNameFor } from './lines.mjs';
+
 const run = promisify(execFile);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,99 +86,6 @@ const options = {
   manifest: arg('manifest'),
   from: arg('from'),
 };
-
-/** Identyfikator kwestii bywa z dwukropkiem, a ten nie wszędzie jest legalny w nazwie pliku. */
-const fileNameFor = (id) => `${id.replace(/:/g, '__')}.mp3`;
-
-/* ------------------------------------------------------------------ *
- * Co właściwie trzeba nagrać
- * ------------------------------------------------------------------ */
-
-/**
- * Nastroje prowadzącego.
- *
- * Ten sam głos, trzy różne temperatury. `tag` trafia wyłącznie do syntezy —
- * model eleven_v3 czyta go jako wskazówkę aktorską i nie wypowiada na głos.
- * Do pakietu zapisujemy nagranie, a nie znacznik, więc żaden „[excited]”
- * nie wypłynie w grze.
- */
-const MOOD = {
-  // rzeczowa zapowiedź: numer rundy, polecenia
-  spokojnie: { stability: 0.6, style: 0.2 },
-  // samo pytanie — czytane wyraźnie, ale bez emfazy
-  pytanie: { stability: 0.5, style: 0.3 },
-  // chwila przed otwarciem zapadni
-  napiecie: { stability: 0.55, style: 0.3, tag: '[whispers]' },
-  // pieniądze zostały
-  triumf: { stability: 0.25, style: 0.7, tag: '[excited]' },
-  // pieniądze poleciały w dół
-  zawod: { stability: 0.45, style: 0.5, tag: '[disappointed]' },
-};
-
-/**
- * Stałe kwestie prowadzącego. Klucz jest identyfikatorem nagrania w pakiecie.
- * „Pieniądze wracają do was” to zawołanie z teleturnieju — pada wtedy, gdy po
- * otwarciu zapadni cokolwiek zostało na stole.
- */
-const FIXED = {
-  intro: ['Witamy w grze Postaw na milion. Przed wami milion złotych w czterdziestu paczkach.', 'spokojnie'],
-  wybierz: ['Dwa hasła. Proszę wybrać jedno.', 'spokojnie'],
-  // odpowiedzi idą pojedynczo, pytanie dopiero po nich
-  odpowiedzi: ['Oto odpowiedzi.', 'napiecie'],
-  ...Object.fromEntries(
-    ['A', 'B', 'C', 'D', 'E', 'F'].map((litera) => [
-      `litera-${litera.toLowerCase()}`,
-      [`${litera}.`, 'spokojnie'],
-    ]),
-  ),
-  rozkladaj: ['Proszę rozłożyć pieniądze. Jedna zapadnia musi zostać pusta.', 'spokojnie'],
-  'czas-start': ['Czas start!', 'triumf'],
-  'czas-minal': ['Czas minął.', 'spokojnie'],
-  zatwierdzone: ['Zatwierdzone. Nie ma odwrotu.', 'spokojnie'],
-  cisza: ['Cisza na sali. Otwieramy zapadnie.', 'napiecie'],
-  'puste-pole': ['To pole było puste.', 'spokojnie'],
-  'leci-w-dol': ['I te pieniądze lecą w dół.', 'zawod'],
-  poprawna: ['Poprawna odpowiedź to:', 'napiecie'],
-  wracaja: ['Pieniądze wracają do was!', 'triumf'],
-  'zostaje-nic': ['Niestety. Na stole nie został ani grosz.', 'zawod'],
-  final: ['Finał. Zostały dwie zapadnie. Cała kwota musi trafić na jedną odpowiedź.', 'napiecie'],
-  gratulacje: ['Gratulacje! Ta kwota jedzie do domu.', 'triumf'],
-  milion: ['Milion złotych! Lepiej się nie da!', 'triumf'],
-  ...Object.fromEntries(
-    ['pierwsze', 'drugie', 'trzecie', 'czwarte', 'piąte', 'szóste', 'siódme', 'ósme'].map(
-      (slowo, i) => [`runda-${i + 1}`, [`Pytanie ${slowo}.`, 'spokojnie']],
-    ),
-  ),
-};
-
-/** Tekst, który ma usłyszeć gracz — `spoken` bije `text`, gdy jest podany. */
-const speakable = (item) => (item.spoken ?? item.text ?? '').trim();
-
-async function collectLines() {
-  const { QUESTIONS } = await import(join(ROOT, 'src/questions.js'));
-  const lines = new Map();
-
-  for (const [key, [text, mood]] of Object.entries(FIXED)) {
-    lines.set(key, { text, mood });
-  }
-
-  // „stan na rok …” prowadzący czyta razem z pytaniem o rekord
-  for (const rok of [...new Set(QUESTIONS.map((q) => q.asOf).filter(Boolean))].sort()) {
-    lines.set(`stan-${rok}`, { text: `Stan na rok ${rok}.`, mood: 'spokojnie' });
-  }
-
-  for (const question of QUESTIONS) {
-    const label = question.spokenLabel ?? question.label;
-    if (label) lines.set(`${question.id}:haslo`, { text: `${label}.`, mood: 'spokojnie' });
-    lines.set(`${question.id}:tresc`, { text: speakable(question), mood: 'pytanie' });
-    question.answers.forEach((answer, i) => {
-      const text = speakable(answer);
-      if (text) lines.set(`${question.id}:odp${i}`, { text, mood: 'spokojnie' });
-    });
-  }
-
-  return lines;
-}
 
 /* ------------------------------------------------------------------ *
  * Synteza
