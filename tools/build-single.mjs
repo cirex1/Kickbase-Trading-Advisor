@@ -146,6 +146,23 @@ await mkdir(join(ROOT, 'dist'), { recursive: true });
 await writeFile(join(ROOT, 'dist/postaw-na-milion.html'), standalone);
 console.log(`dist/postaw-na-milion.html — ${(standalone.length / 1024).toFixed(0)} kB`);
 
+/*
+ * Pakiet nagrań lektora podróżuje obok pliku, a nie w środku.
+ *
+ * Waży kilka megabajtów, a wklejony w HTML musiałby się wczytać w całości,
+ * zanim pokaże się cokolwiek. Jako osobny plik doczytuje się w tle i tylko
+ * wtedy, gdy w ogóle istnieje — gra bez niego działa tak samo, tyle że
+ * głosem systemowym.
+ */
+try {
+  const pack = await read('assets/voice/pack.js');
+  await mkdir(join(ROOT, 'dist/assets/voice'), { recursive: true });
+  await writeFile(join(ROOT, 'dist/assets/voice/pack.js'), pack);
+  console.log(`dist/assets/voice/pack.js — ${(pack.length / 1024 / 1024).toFixed(1)} MB`);
+} catch {
+  console.log('nagrania lektora: brak pakietu — gra przeczyta głosem systemowym');
+}
+
 if (process.argv.includes('--fragment')) {
   const title = standalone.match(/<title>([^<]*)<\/title>/)?.[1] ?? 'Postaw na milion';
   const body = standalone.match(/<body>([\s\S]*)<\/body>/)?.[1];

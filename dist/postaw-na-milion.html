@@ -2205,12 +2205,16 @@ function offeredQuestions(state) {
   return picked.map((q) => ({ id: q.id, label: q.label ?? q.category }));
 }
 
-/** Kopiuje pytanie z potasowanymi odpowiedziami. */
+/**
+ * Kopiuje pytanie z potasowanymi odpowiedziami.
+ *
+ * Każda odpowiedź zapamiętuje przy okazji swoje miejsce w bazie (`at`).
+ * Po tasowaniu i zwężaniu nie da się go już odtworzyć, a jest potrzebne:
+ * nagrania lektora są podpisane numerem z bazy, nie numerem zapadni.
+ */
 function prepareQuestion(question, rng) {
-  return {
-    ...question,
-    answers: shuffle(question.answers, rng).map((a) => ({ ...a })),
-  };
+  const numbered = question.answers.map((a, at) => ({ ...a, at }));
+  return { ...question, answers: shuffle(numbered, rng) };
 }
 
 /**
@@ -5359,6 +5363,151 @@ function burst(canvas, { count = 180, duration = 4200 } = {}) {
 return { burst };
 })();
 
+/* ===== src/voicepack.js ===== */
+__mod['src/voicepack.js'] = (function () {
+
+/**
+ * Pakiet nagrań lektora — prawdziwy głos zamiast syntezatora.
+ *
+ * Nagrania powstają raz, poza grą (`tools/voice-build.mjs`), i lądują
+ * w jednym pliku `assets/voice/pack.js`. Plik jest zwykłym skryptem, nie
+ * modułem — i to jest cała sztuczka: moduły ES przeglądarki blokują przy
+ * otwarciu przez file://, a klasyczny <script src="…"> ładuje się także
+ * z dwukliku. Dzięki temu gra mówi ludzkim głosem również offline, bez
+ * serwera i bez konta.
+ *
+ * Pakiet dokładamy osobno, a nie do wersji jednoplikowej, z prozaicznego
+ * powodu: waży kilka megabajtów. Wklejony w HTML musiałby się wczytać
+ * w całości, zanim cokolwiek się pokaże.
+ *
+ * Czego tu nie ma: pobierania czegokolwiek z sieci w trakcie gry. Jeśli
+ * pakietu nie ma albo się nie wczyta, moduł mówi „nie mam” i lektor wraca
+ * do głosu systemowego. Brak nagrań nigdy nie jest błędem.
+ */
+
+/** Gdzie szukać pakietu. Pierwsza pasująca ścieżka wygrywa. */
+const CANDIDATES = ['assets/voice/pack.js', '../assets/voice/pack.js', 'voice/pack.js'];
+
+let pack = null;
+let format = 'audio/mpeg';
+let loading = null;
+/** Adresy Blobów, po jednym na kwestię — tworzone dopiero przy pierwszym użyciu. */
+const urls = new Map();
+let current = null;
+
+/** Czy pakiet jest już w pamięci. */
+function isReady() {
+  return Boolean(pack);
+}
+
+function count() {
+  return pack ? Object.keys(pack).length : 0;
+}
+
+function has(key) {
+  return Boolean(pack && pack[key]);
+}
+
+function adopt(source) {
+  if (!source || typeof source !== 'object') return false;
+  const lines = source.lines ?? source.VOICE_PACK ?? source;
+  if (!lines || typeof lines !== 'object' || !Object.keys(lines).length) return false;
+  pack = lines;
+  format = source.format ?? source.VOICE_FORMAT ?? format;
+  return true;
+}
+
+function loadScript(src) {
+  return new Promise((resolve) => {
+    const tag = document.createElement('script');
+    tag.src = src;
+    tag.async = true;
+    tag.onload = () => resolve(true);
+    tag.onerror = () => {
+      tag.remove();
+      resolve(false);
+    };
+    document.head.append(tag);
+  });
+}
+
+/**
+ * Próbuje wczytać pakiet. Wywołanie jest bezpieczne wielokrotnie — kolejne
+ * dostają tę samą obietnicę, a brak pliku kończy się spokojnym `false`.
+ */
+function load() {
+  if (pack) return Promise.resolve(true);
+  if (loading) return loading;
+
+  loading = (async () => {
+    if (typeof window === 'undefined') return false;
+    // ktoś mógł dołożyć pakiet własnym <script>-em w index.html
+    if (adopt(window.PNM_VOICE)) return true;
+
+    for (const src of CANDIDATES) {
+      if (await loadScript(src)) {
+        if (adopt(window.PNM_VOICE)) return true;
+      }
+    }
+    return false;
+  })();
+
+  return loading;
+}
+
+function urlFor(key) {
+  if (!has(key)) return null;
+  if (urls.has(key)) return urls.get(key);
+  try {
+    const binary = atob(pack[key]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: format }));
+    urls.set(key, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Odtwarza jedną kwestię i czeka, aż wybrzmi. Zwraca `false`, gdy nagrania
+ * nie ma albo przeglądarka odmówiła — wtedy woła się syntezator.
+ */
+function play(key) {
+  const url = urlFor(key);
+  if (!url) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const audio = new Audio(url);
+    current = audio;
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (current === audio) current = null;
+      resolve(ok);
+    };
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    // koło ratunkowe: gdyby żadne zdarzenie nie padło, nie blokujemy sekwencji
+    setTimeout(() => finish(true), 20_000);
+    audio.play().catch(() => finish(false));
+  });
+}
+
+function stop() {
+  if (!current) return;
+  try {
+    current.pause();
+  } catch {
+    /* nic nie szkodzi */
+  }
+  current = null;
+}
+return { isReady, count, has, load, play, stop };
+})();
+
 /* ===== src/speech.js ===== */
 __mod['src/speech.js'] = (function () {
 const { readSetting, writeSetting } = __mod['src/storage.js'];
@@ -5370,10 +5519,18 @@ const { readSetting, writeSetting } = __mod['src/storage.js'];
  * dotyka jej Content-Security-Policy — synteza mowy nie jest z punktu widzenia
  * CSP żadnym pobraniem, więc nie trzeba otwierać `media-src`.
  *
- * Cena: głos daje system, nie my. Dlatego bierzemy wyłącznie głosy
- * z `localService === true`. To gwarantuje działanie bez sieci, a przy okazji
- * omija błąd Chromium, w którym mowa z głosów serwerowych urywa się po
- * kilkunastu sekundach.
+ * Cena: głos daje system, nie my. Kiedyś braliśmy wyłącznie głosy
+ * z `localService === true`, żeby gra działała bez sieci. Ta zasada okazała się
+ * za droga: najlepsze polskie głosy — Google Polski, Microsoft Marek i Zofia
+ * w wersji „Natural” — chodzą po sieci, a to, co system ma na dysku, brzmi przy
+ * nich jak automat z dworca. Skoro gra i tak jest do grania w przeglądarce,
+ * wybieramy najlepszy dostępny głos, a o pracy przez sieć uczciwie uprzedzamy.
+ * Kto woli offline, przestawia głos w oknie „Zasady”.
+ *
+ * Błąd Chromium, przez który mowa z głosów serwerowych urywa się po
+ * kilkunastu sekundach, omijamy inaczej: dzielimy tekst na krótkie kawałki.
+ * Najdłuższa kwestia w tej grze ma sto kilkanaście znaków, więc limit i tak
+ * nie jest zagrożony.
  *
  * SSML odpada — przeglądarki go nie wspierają, a macOS potrafi przeczytać
  * znaczniki na głos. Pauzy i zmiany tempa robimy więc dzieląc tekst na
@@ -5389,6 +5546,8 @@ const VOICE_KEY = 'pnm.glos';
 const PREFERRED = [
   'google polski',
   'google polish',
+  'marek',
+  'zofia',
   'zosia',
   'krzysztof',
   'ewa',
@@ -5397,6 +5556,14 @@ const PREFERRED = [
   'paulina',
   'adam',
 ];
+
+/**
+ * Głosy nowej generacji. Nazwa zdradza je we wszystkich przeglądarkach:
+ * Microsoft dopisuje „Natural”, Google „WaveNet”, Apple „Premium” albo
+ * „Enhanced”. Różnica w brzmieniu jest większa niż między dwoma zwykłymi
+ * głosami, dlatego premia jest tu wyższa niż za cokolwiek innego.
+ */
+const NATURAL = /natural|neural|wavenet|premium|enhanced|studio|journey/;
 
 /** Syntezatory ostatniej szansy — zrozumiałe, ale brzmią jak robot z lat 80. */
 const ROBOTIC = /espeak|festival|mbrola|pico|flite|sam\b/;
@@ -5418,10 +5585,11 @@ const isPolish = (v) => /^pl($|[-_])/i.test(v.lang || '');
 function score(v) {
   const name = `${v.name || ''} ${v.voiceURI || ''}`.toLowerCase();
   let points = 0;
+  if (NATURAL.test(name)) points += 1500; // to słychać od pierwszego zdania
   const rank = PREFERRED.findIndex((k) => name.includes(k));
   if (rank >= 0) points += (PREFERRED.length - rank) * 100;
-  if (ROBOTIC.test(name)) points -= 1000;
-  if (v.localService) points += 400; // bez sieci i bez błędu z urywaniem
+  if (ROBOTIC.test(name)) points -= 3000;
+  if (v.localService) points += 150; // miły dodatek, ale nie kosztem brzmienia
   if (/pl[-_]pl/i.test(v.lang)) points += 20;
   return points;
 }
@@ -5473,9 +5641,9 @@ async function init() {
   available = all.filter(isPolish).sort((a, b) => score(b) - score(a));
 
   const remembered = readSetting(VOICE_KEY);
+  // lista jest już posortowana od najlepszego, więc domyślnie bierzemy pierwszy
   voice =
     available.find((v) => v.voiceURI === remembered || v.name === remembered) ??
-    available.find((v) => v.localService) ??
     available[0] ??
     null;
 
@@ -5500,6 +5668,16 @@ function setVoice(idOrName) {
 
 function isOn() {
   return enabled && Boolean(voice);
+}
+
+/** Czy gracz w ogóle chce słyszeć lektora — niezależnie od tego, czym mówi. */
+function isEnabled() {
+  return enabled;
+}
+
+/** Czy jest czym mówić z syntezatora systemowego. */
+function hasVoice() {
+  return Boolean(voice);
 }
 
 function toggle() {
@@ -5621,7 +5799,125 @@ function stop() {
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', stop);
 }
-return { isSupported, init, voices, currentVoice, setVoice, isOn, toggle, unlock, say, stop };
+return { isSupported, init, voices, currentVoice, setVoice, isOn, isEnabled, hasVoice, toggle, unlock, say, stop };
+})();
+
+/* ===== src/lektor.js ===== */
+__mod['src/lektor.js'] = (function () {
+const pack = __mod['src/voicepack.js'];
+const tts = __mod['src/speech.js'];
+/**
+ * Lektor — jedno wejście dla całej gry, dwa źródła dźwięku.
+ *
+ * Każda kwestia ma identyfikator (`key`) i zapasowy tekst. Jeśli w pakiecie
+ * nagrań leży plik o tym identyfikatorze, słychać prawdziwy głos. Jeśli nie —
+ * czyta syntezator systemowy ten sam tekst. Reszta gry nie musi wiedzieć,
+ * która droga zadziałała, i dlatego wszystkie wywołania wyglądają tak samo:
+ *
+ *   lektor.say([
+ *     { key: 'poprawna', text: 'Poprawna odpowiedź to:', pauseAfter: 500 },
+ *     { key: `${q.id}:odp2`, text: 'Canberra' },
+ *   ]);
+ *
+ * Identyfikatory muszą się zgadzać z tymi, które nadaje `tools/voice-build.mjs` —
+ * to jedyne miejsce, gdzie te dwa światy się spotykają.
+ */
+
+
+
+
+/** Rośnie przy każdym przerwaniu — kończy sekwencję, która jest w trakcie. */
+let generation = 0;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const normalize = (segments) =>
+  (Array.isArray(segments) ? segments : [segments])
+    .filter(Boolean)
+    .map((s) => (typeof s === 'string' ? { text: s } : s));
+
+/* ------------------------------------------------------------------ *
+ * Stan
+ * ------------------------------------------------------------------ */
+
+const isSupported = () => tts.isSupported() || typeof Audio !== 'undefined';
+
+/** Włączony i ma czym mówić: albo nagraniami, albo syntezatorem. */
+function isOn() {
+  return tts.isEnabled() && (pack.isReady() || tts.hasVoice());
+}
+
+function toggle() {
+  const on = tts.toggle();
+  if (!on) stop();
+  return on;
+}
+
+function hasPack() {
+  return pack.isReady();
+}
+
+function packSize() {
+  return pack.count();
+}
+
+const voices = tts.voices;
+const currentVoice = tts.currentVoice;
+const setVoice = tts.setVoice;
+
+/**
+ * Pakiet nagrań próbujemy wczytać raz, przy starcie. Gdy go nie ma, nic się
+ * nie dzieje — `init` i tak zwróci to, co znalazł syntezator.
+ */
+async function init() {
+  const [state] = await Promise.all([tts.init(), pack.load()]);
+  return { ...state, pack: pack.isReady(), packLines: pack.count() };
+}
+
+/** Pierwsze odtworzenie musi wyjść z gestu użytkownika — stąd cisza na start. */
+function unlock() {
+  tts.unlock();
+}
+
+/* ------------------------------------------------------------------ *
+ * Mówienie
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mówi po kolei. Nie czekamy na to w interfejsie — mowa ma towarzyszyć grze,
+ * nie wstrzymywać jej.
+ */
+async function say(segments, defaults = {}) {
+  if (!isOn()) return false;
+
+  const list = normalize(segments);
+  const mine = ++generation;
+  pack.stop();
+
+  // Bez pakietu oddajemy całość syntezatorowi jednym wywołaniem: sam dzieli
+  // tekst i sam pilnuje kolejki, więc nie ma po co się w to wtrącać.
+  if (!pack.isReady()) return tts.say(list, defaults);
+
+  for (const segment of list) {
+    if (mine !== generation) return false;
+
+    const played = segment.key ? await pack.play(segment.key) : false;
+    if (!played) {
+      if (mine !== generation) return false;
+      // pojedynczy segment — syntezator dopowiada to, czego nie nagrano
+      await tts.say(segment, defaults);
+    }
+    if (segment.pauseAfter) await sleep(segment.pauseAfter);
+  }
+  return mine === generation;
+}
+
+function stop() {
+  generation++;
+  pack.stop();
+  tts.stop();
+}
+return { isOn, toggle, hasPack, packSize, init, unlock, say, stop, isSupported, voices, currentVoice, setVoice };
 })();
 
 /* ===== src/app.js ===== */
@@ -5631,7 +5927,7 @@ const { QUESTIONS } = __mod['src/questions.js'];
 const { isSoundOn, sfx, toggleSound } = __mod['src/audio.js'];
 const { burst } = __mod['src/confetti.js'];
 const { readSetting, writeSetting } = __mod['src/storage.js'];
-const lektor = __mod['src/speech.js'];
+const lektor = __mod['src/lektor.js'];
 /**
  * Warstwa prezentacji: łączy silnik gry (src/engine.js) ze sceną w DOM-ie.
  *
@@ -5658,6 +5954,8 @@ const lektor = __mod['src/speech.js'];
 
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+/** Zapasowa treść zapowiedzi rundy — nagrania mają własną, taką samą. */
+const ORDINALS = ['pierwsze', 'drugie', 'trzecie', 'czwarte', 'piąte', 'szóste', 'siódme', 'ósme'];
 const BEST_KEY = 'pnm.best';
 
 /** Maksymalna wysokość stosu w pikselach — na zapadni i w rękach. */
@@ -5671,7 +5969,7 @@ const BEAT = {
   beforeQuestion: 850, // cisza po ostatniej odpowiedzi, zanim padnie pytanie
   tension: 1500, // cisza po zatwierdzeniu
   spotlight: 420, // podświetlenie pola tuż przed otwarciem
-  emptyDoor: 900, // pusta zapadnia — otwiera się i nic nie spada
+  emptyDoor: 1200, // pusta zapadnia — otwiera się i nic nie spada
   loadedDoor: 1800, // zapadnia z pieniędzmi — paczki muszą dolecieć
   finish: 1300, // od poprawnej zapadni do podsumowania
 };
@@ -5985,6 +6283,7 @@ function renderChoice() {
   void el.bumper.offsetWidth;
   el.bumper.classList.add('is-running');
   sfx.bumper();
+  lektor.say({ key: `runda-${state.roundIndex + 1}`, text: `Pytanie ${ORDINALS[state.roundIndex]}.` });
 
   later(() => {
     el.bumper.hidden = true;
@@ -6006,10 +6305,8 @@ function renderChoice() {
     el.choice.hidden = false;
     el.choiceCards.querySelector('.choice__card')?.focus();
     lektor.say([
-      { text: 'Dwa hasła.', pauseAfter: 500 },
-      ...offer.flatMap(({ label }, i) => [
-        { text: i === 0 ? `Pierwsze: ${label}.` : `Drugie: ${label}.`, pauseAfter: 450 },
-      ]),
+      { key: 'wybierz', text: 'Dwa hasła. Proszę wybrać jedno.', pauseAfter: 450 },
+      ...offer.map(({ id, label }) => ({ key: `${id}:haslo`, text: `${label}.`, pauseAfter: 450 })),
     ]);
   }, BEAT.bumper);
 }
@@ -6057,8 +6354,16 @@ function renderQuestion() {
   el.waitingText.textContent = 'Najpierw odpowiedzi. Pytanie za chwilę.';
   el.btnSkip.textContent = 'Od razu pytanie';
   lektor.say([
-    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 500 }] : []),
-    { text: 'Oto odpowiedzi.' },
+    ...(question.isFinal
+      ? [
+          {
+            key: 'final',
+            text: 'Finał. Zostały dwie zapadnie. Cała kwota musi trafić na jedną odpowiedź.',
+            pauseAfter: 500,
+          },
+        ]
+      : []),
+    { key: 'odpowiedzi', text: 'Oto odpowiedzi.' },
   ]);
 
   runSteps(presentationSteps(question));
@@ -6087,7 +6392,12 @@ function presentationSteps(question) {
         // że na scenie właśnie coś się zapaliło
         el.waitingText.textContent = `${LETTERS[index]}. ${answer.text}`;
         sfx.answer();
-        lektor.say({ text: spoken[index], rate: 0.92 });
+        // litera i treść to dwa osobne nagrania — dzięki temu jedno nagranie
+        // odpowiedzi pasuje do każdej zapadni, na której akurat wyląduje
+        lektor.say([
+          { key: `litera-${LETTERS[index].toLowerCase()}`, text: `${LETTERS[index]}.` },
+          { key: `${question.id}:odp${answer.at}`, text: answer.spoken ?? answer.text, rate: 0.92 },
+        ]);
       },
     });
   });
@@ -6108,8 +6418,10 @@ function presentationSteps(question) {
       renderStakes();
       startTimer();
       lektor.say([
-        { text: question.spoken ?? question.text, rate: 0.93 },
-        ...(question.asOf ? [{ text: `Stan na rok ${question.asOf}.`, rate: 0.9 }] : []),
+        { key: `${question.id}:tresc`, text: question.spoken ?? question.text, rate: 0.93 },
+        ...(question.asOf
+          ? [{ key: `stan-${question.asOf}`, text: `Stan na rok ${question.asOf}.`, rate: 0.9 }]
+          : []),
       ]);
     },
   });
@@ -6244,6 +6556,11 @@ function lockIn(byTimeout = false) {
   });
 
   sfx.lock();
+  lektor.say(
+    byTimeout
+      ? { key: 'czas-minal', text: 'Czas minął.' }
+      : { key: 'zatwierdzone', text: 'Zatwierdzone. Nie ma odwrotu.' },
+  );
 
   let running = state.result.balanceBefore;
   const list = [];
@@ -6302,8 +6619,10 @@ function lockIn(byTimeout = false) {
             sfx.fall();
             animateMoney(to, 900);
             el.waitingText.textContent = `${LETTERS[index]} — w dół leci ${zl(stake)}.`;
+            lektor.say({ key: 'leci-w-dol', text: 'I te pieniądze lecą w dół.' });
           } else {
             el.waitingText.textContent = `${LETTERS[index]} — puste pole.`;
+            lektor.say({ key: 'puste-pole', text: 'To pole było puste.' });
           }
         },
       });
@@ -6351,11 +6670,22 @@ function showRoundSummary() {
   el.reveal.hidden = false;
   el.btnNext.focus();
 
+  // Kwoty czyta ekran, nie lektor. Nagrać da się tylko zdania stałe, a mieszanka
+  // prawdziwego głosu z syntezatorem w jednym zdaniu brzmi gorzej niż każde z nich
+  // z osobna — dlatego na koniec pada zawołanie z teleturnieju, nie liczba.
   const winner = question.answers[correct[0]];
   lektor.say([
-    { text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
-    { text: `${winner.spoken ?? winner.text}.`, rate: 0.86, pitch: 0.94, pauseAfter: 500 },
-    { text: kept === 0 ? 'Wszystko przepadło.' : `Zostaje ${zl(kept)}.`, rate: 0.9 },
+    { key: 'poprawna', text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
+    {
+      key: `${question.id}:odp${winner.at}`,
+      text: `${winner.spoken ?? winner.text}.`,
+      rate: 0.86,
+      pitch: 0.94,
+      pauseAfter: 500,
+    },
+    kept === 0
+      ? { key: 'zostaje-nic', text: 'Niestety. Na stole nie został ani grosz.', rate: 0.9 }
+      : { key: 'wracaja', text: 'Pieniądze wracają do was!', rate: 0.95 },
   ]);
 }
 
@@ -6558,9 +6888,12 @@ async function setUpVoices() {
     el.voiceHint.textContent = 'Ta przeglądarka nie ma syntezatora mowy.';
     return;
   }
-  const { voices, voice, offlineSafe } = await lektor.init();
+  const { voices, voice, offlineSafe, pack, packLines } = await lektor.init();
 
-  el.btnVoice.hidden = voices.length === 0;
+  // Z pakietem nagrań lektor działa nawet wtedy, gdy system nie ma żadnego
+  // polskiego głosu — przycisk musi być widoczny także w tym przypadku.
+  el.btnVoice.hidden = voices.length === 0 && !pack;
+  el.voicePicker.disabled = pack;
   el.voicePicker.innerHTML = '';
   for (const item of voices) {
     const option = document.createElement('option');
@@ -6570,12 +6903,18 @@ async function setUpVoices() {
     el.voicePicker.append(option);
   }
 
-  if (!voices.length) {
+  if (pack) {
+    el.voiceHint.textContent =
+      `Gra mówi nagraniami lektora (${packLines} kwestii). Syntezator wchodzi tylko tam, ` +
+      'gdzie nagrania brakuje.';
+  } else if (!voices.length) {
     el.voiceHint.textContent =
       'Nie znaleziono polskiego głosu. Windows: doinstaluj pakiet języka polskiego z mową. ' +
       'macOS: Ustawienia → Dostępność → Treść mówiona → głos Zosia. Android: pakiet offline Google.';
   } else if (!offlineSafe) {
-    el.voiceHint.textContent = 'Wybrany głos działa przez sieć — bez internetu zamilknie.';
+    el.voiceHint.textContent =
+      'Ten głos liczy się w chmurze — brzmi najlepiej, ale bez internetu zamilknie. ' +
+      'Głos bez dopisku „przez sieć” działa offline.';
   } else {
     el.voiceHint.textContent = '';
   }
@@ -6636,7 +6975,7 @@ el.btnVoice.addEventListener('click', () => {
   lektor.unlock();
   const on = lektor.toggle();
   syncVoiceButton();
-  if (on) lektor.say('Lektor włączony.');
+  if (on) lektor.say({ key: 'wybierz', text: 'Lektor włączony.' });
 });
 el.voicePicker.addEventListener('change', () => {
   lektor.unlock();

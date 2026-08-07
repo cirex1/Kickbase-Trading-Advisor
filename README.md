@@ -57,14 +57,51 @@ werden weiterhin die Dateien in `src/`.
 
 ## Vorlesestimme
 
-Das Spiel liest Hasła, Fragen und Auflösungen vor. Zwei Stufen, beide offline:
+Das Spiel liest Hasła, Antworten, Fragen und Auflösungen vor. Drei Stufen:
 
-**Ohne alles** nutzt es die Stimmen des Betriebssystems (`src/speech.js`). Kostet nichts,
-braucht keine Dateien — aber die Qualität hängt am Gerät, und auf einem System ohne
-polnisches Sprachpaket gibt es gar keine Stimme. Dann bleibt der Lektor-Knopf ausgeblendet.
+**Systemstimme, offline** (`src/speech.js`). Kostet nichts, braucht keine Dateien — aber die
+Qualität hängt am Gerät. Auf einem System ganz ohne polnisches Sprachpaket bleibt der
+Lektor-Knopf ausgeblendet.
 
-**Mit Sprachpaket** klingt es nach Sendung. `tools/voice-build.mjs` nimmt alle Zeilen einmal
-auf und legt sie als `assets/voice/pack.js` ab; danach ist nichts mehr nachzuladen.
+**Neuronale Browserstimme, kostenlos.** Microsoft „Marek/Zofia Natural" in Edge oder „Google
+polski" in Chrome sind gratis und um Klassen besser als das, was lokal installiert ist. Sie
+rechnen allerdings in der Cloud. Deshalb sortiert `score()` neuronale Stimmen ganz nach oben
+und wählt sie als Standard; wer offline spielen will, stellt im Regel-Dialog um. Der Hinweis
+unter der Liste sagt, was gerade gilt.
+
+**Eigene Aufnahmen, offline.** `tools/voice-build.mjs` nimmt jede Zeile einmal auf (ElevenLabs
+oder Piper) und legt sie als `assets/voice/pack.js` ab. Danach lädt nichts mehr nach.
+
+### Wie die Aufnahmen ins Spiel kommen
+
+Jede gesprochene Zeile hat einen Schlüssel und einen Ersatztext:
+
+```js
+lektor.say([
+  { key: 'poprawna',        text: 'Poprawna odpowiedź to:' },
+  { key: `${q.id}:odp${a.at}`, text: a.spoken ?? a.text },
+]);
+```
+
+Liegt im Paket eine Aufnahme unter diesem Schlüssel, hört man sie. Sonst liest der
+Synthesizer denselben Text. `src/lektor.js` entscheidet das pro Zeile, der Rest des Spiels
+merkt davon nichts. Die Schlüssel vergibt `tools/voice-build.mjs` — das ist die einzige
+Stelle, an der beide Welten zusammenpassen müssen.
+
+`a.at` ist die Position der Antwort in `questions.js`. Das Spiel mischt die Antworten pro
+Runde, die Aufnahme gehört aber zum Text, nicht zur Falltür — deshalb merkt sich
+`prepareQuestion()` die ursprüngliche Nummer.
+
+Beträge spricht der Lektor nicht. Aufnehmen lassen sich nur feste Sätze, und ein Satz halb
+aus Aufnahme, halb aus Synthesizer klingt schlechter als beides einzeln — also sagt er am
+Rundenende den Ausruf aus der Show („Pieniądze wracają do was!"), und die Summe steht auf
+dem Schirm.
+
+Das Paket ist ein **klassisches Skript**, kein ES-Modul: Module blockieren Browser bei
+`file://`, und genau dort soll das Spiel per Doppelklick laufen. Es setzt `window.PNM_VOICE`
+und wird beim Start nachgeladen (`src/voicepack.js`). `npm run build` kopiert es neben die
+Einzeldatei nach `dist/assets/voice/`. In die HTML eingebettet wird es nicht — ein paar
+Megabyte Audio müssten sonst geladen sein, bevor irgendetwas erscheint.
 
 ### Den API-Schlüssel hinterlegen
 
@@ -124,9 +161,14 @@ src/app.js                  Verbindung Logik ↔ DOM, Timer, Türöffnungs-Chore
 src/audio.js                Sounds, komplett per Web Audio API erzeugt (keine Dateien)
 src/confetti.js             Konfetti auf dem Endscreen
 src/storage.js              gekapselter localStorage-Zugriff (Privatmodus wirft sonst)
+src/lektor.js               Sprecher: Aufnahme wenn vorhanden, sonst Synthesizer
+src/voicepack.js            lädt und spielt das Aufnahmepaket
+src/speech.js               Systemstimmen (Web Speech API), Auswahl und Rangfolge
 tools/build-single.mjs      baut die Einzeldatei
+tools/voice-build.mjs       nimmt den Sprecher auf und packt ihn (läuft einmal, lokal)
 tests/engine.test.js        Tests der Spiellogik
 dist/postaw-na-milion.html  gebaute Einzeldatei (generiert)
+assets/voice/pack.js        Aufnahmen (nicht im Repo — entsteht lokal, s. o.)
 ```
 
 ### Wie die Bühne aufgebaut ist

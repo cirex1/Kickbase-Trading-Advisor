@@ -153,12 +153,16 @@ export function offeredQuestions(state) {
   return picked.map((q) => ({ id: q.id, label: q.label ?? q.category }));
 }
 
-/** Kopiuje pytanie z potasowanymi odpowiedziami. */
+/**
+ * Kopiuje pytanie z potasowanymi odpowiedziami.
+ *
+ * Każda odpowiedź zapamiętuje przy okazji swoje miejsce w bazie (`at`).
+ * Po tasowaniu i zwężaniu nie da się go już odtworzyć, a jest potrzebne:
+ * nagrania lektora są podpisane numerem z bazy, nie numerem zapadni.
+ */
 export function prepareQuestion(question, rng) {
-  return {
-    ...question,
-    answers: shuffle(question.answers, rng).map((a) => ({ ...a })),
-  };
+  const numbered = question.answers.map((a, at) => ({ ...a, at }));
+  return { ...question, answers: shuffle(numbered, rng) };
 }
 
 /**

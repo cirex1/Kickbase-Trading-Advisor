@@ -10,5 +10,9 @@ Thumbs.db
 dist/fragment.html
 .voice-cache/
 
+# nagrania lektora — kilka megabajtów audio; powstają u siebie i tam zostają
+assets/voice/pack.js
+dist/assets/
+
 # klucze API — nigdy do repozytorium
 .env

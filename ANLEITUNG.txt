@@ -10,12 +10,51 @@ das fertige Spiel, und ein Helfer für die Sprecherstimme.
 
     dist/postaw-na-milion.html   →   doppelklicken
 
-Fertig. Kein Server, kein Internet nötig. Das Spiel spricht bereits — mit
-der Stimme, die dein Betriebssystem mitbringt.
+Fertig. Kein Server, kein Internet nötig.
 
-Wenn oben rechts KEIN Knopf "Lektor" auftaucht, hat dein Computer keine
-polnische Stimme installiert. Dann bleibt das Spiel stumm, funktioniert
-aber ganz normal. Nachrüsten geht so:
+
+2. DIE STIMME — drei Stufen
+---------------------------
+
+Das Spiel liest Hasła, Antworten, Fragen und Auflösungen vor. Wie gut das
+klingt, hängt davon ab, welche Stufe du nimmst.
+
+  Stufe 1   Die Stimme, die dein Betriebssystem mitbringt.
+  (nichts    Läuft sofort, klingt aber nach Navi von 2009.
+   zu tun)
+
+  Stufe 2   Eine neuronale Stimme des Browsers — kostenlos, kein Konto,
+  (2 Min.)   und ein enormer Unterschied. Siehe unten.
+
+  Stufe 3   Echte Aufnahmen von ElevenLabs. Klingt wie ein echter
+  (Kaffee-   Moderator. Einmal aufnehmen, danach für immer offline.
+   pause)    Siehe Abschnitt 3.
+
+
+STUFE 2: BESSERE STIMME IN 2 MINUTEN, KOSTENLOS
+-----------------------------------------------
+
+Die guten polnischen Stimmen rechnen in der Cloud und sind trotzdem gratis.
+Am einfachsten kommst du über MICROSOFT EDGE dran — der Browser ist auf
+jedem Windows schon installiert:
+
+  1. dist/postaw-na-milion.html mit Edge öffnen
+     (Rechtsklick auf die Datei → Öffnen mit → Microsoft Edge)
+  2. Oben rechts auf "Zasady"
+  3. Unter "Głos" die Liste aufklappen
+  4. Etwas mit "Natural" oder "Online" im Namen wählen —
+     "Marek" ist die männliche polnische Stimme, "Zofia" die weibliche
+  5. Das Spiel sagt sofort "Tak brzmi ten głos." zur Probe
+
+In Chrome heißt die gute Stimme "Google polski". Das Spiel wählt von
+selbst die beste, die es findet — die Liste ist nach Qualität sortiert,
+oben steht die beste.
+
+Nachteil: diese Stimmen brauchen Internet. Ohne Netz bleibt das Spiel
+stumm. Stimmen OHNE den Zusatz "(przez sieć)" laufen offline.
+
+Wenn gar kein "Lektor"-Knopf auftaucht, hat der Computer keine polnische
+Stimme. Nachrüsten:
 
   Windows  Einstellungen → Zeit und Sprache → Sprache → Sprache hinzufügen
            → Polnisch → beim Installieren "Sprachausgabe" ankreuzen
@@ -23,10 +62,13 @@ aber ganz normal. Nachrüsten geht so:
            → Systemstimme → Anpassen → Polnisch → "Zosia" laden
 
 
-2. BESSERE STIMME — optional, dauert eine Kaffeepause
------------------------------------------------------
+3. STUFE 3: ECHTE AUFNAHMEN (ELEVENLABS)
+----------------------------------------
 
-Nur wenn du willst. Das Spiel funktioniert auch ohne.
+Das ist die Stufe, die wirklich nach Fernsehen klingt: eine tiefe
+Männerstimme, die jede Frage einmal eingesprochen hat. Die Aufnahmen
+liegen danach im Spiel, es wird nie wieder etwas nachgeladen — auch
+offline nicht.
 
   Schritt 1   Node.js installieren, falls noch nicht vorhanden:
               https://nodejs.org  (die linke, grüne Schaltfläche)
@@ -51,7 +93,32 @@ Abbrechen ist immer erlaubt. Beim nächsten Start macht er dort weiter, wo
 er aufgehört hat — nichts wird doppelt bezahlt.
 
 Am Ende entsteht:  assets/voice/pack.js
-Diese eine Datei bitte an Claude schicken, dann wird sie ins Spiel eingebaut.
+
+Diese Datei muss NEBEN dem Spiel liegen, damit sie gefunden wird:
+
+    dist/postaw-na-milion.html
+    dist/assets/voice/pack.js      ←  genau dieser Pfad
+
+Wer das Spiel aus den Quellen neu baut (npm run build), bekommt das
+automatisch: die Datei wird mitkopiert.
+
+Ob es geklappt hat, steht im Spiel: "Zasady" → unter der Stimmenliste
+erscheint dann "Gra mówi nagraniami lektora (… kwestii)".
+
+Fehlt eine einzelne Aufnahme, springt für genau diesen Satz die
+Systemstimme ein. Nichts geht kaputt.
+
+
+OHNE KONTO, DAFÜR MIT GEDULD
+----------------------------
+
+Es gibt auch einen kostenlosen Offline-Weg über Piper — ein Sprachmodell,
+das auf dem eigenen Rechner rechnet. Klingt zwischen Stufe 1 und 3, kostet
+nichts, braucht aber die Kommandozeile:
+
+    node tools/voice-build.mjs --engine piper --piper-model pl_PL-darkman-medium.onnx
+
+Die Stimmdateien gibt es bei rhasspy/piper-voices, Ordner pl_PL.
 
 
 WICHTIG ZUM SCHLÜSSEL
@@ -65,7 +132,7 @@ auch nicht mir. Ich brauche nur pack.js.
 WAS KOSTET DAS
 --------------
 
-Nur die Aufnahme, ein einziges Mal: rund 21 000 Zeichen für gut tausend Sätze.
-Die genaue Zahl nennt der Helfer beim Start.
+Nur die Aufnahme, ein einziges Mal: rund 21 000 Zeichen für gut tausend
+Sätze. Die genaue Zahl nennt der Helfer beim Start.
 Beim Spielen entstehen nie wieder Kosten — die Stimme steckt dann in der
 Datei und funktioniert auch ohne Internet.

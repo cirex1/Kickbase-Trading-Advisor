@@ -397,12 +397,14 @@ async function writePack(pack, stamp, count) {
     .digest('hex')
     .slice(0, 8);
 
+  // Zwykły skrypt, nie moduł — i to jest cały sens. Moduły ES przeglądarki
+  // blokują przy otwarciu przez file://, więc pakiet-moduł milczałby dokładnie
+  // tam, gdzie gra ma działać z dwukliku.
   const file = `/**
  * Pakiet lektora — wygenerowany przez tools/voice-build.mjs. Nie edytować ręcznie.
  * Głos: ${stamp} · kwestii: ${count} · sygnatura: ${fingerprint}
  */
-export const VOICE_PACK = ${JSON.stringify(pack)};
-export const VOICE_FORMAT = 'audio/mpeg';
+window.PNM_VOICE = { format: 'audio/mpeg', lines: ${JSON.stringify(pack)} };
 `;
 
   const target = resolve(ROOT, options.out);

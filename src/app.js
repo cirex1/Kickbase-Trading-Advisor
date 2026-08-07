@@ -44,9 +44,11 @@ import { QUESTIONS } from './questions.js';
 import { isSoundOn, sfx, toggleSound } from './audio.js';
 import { burst } from './confetti.js';
 import { readSetting, writeSetting } from './storage.js';
-import * as lektor from './speech.js';
+import * as lektor from './lektor.js';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+/** Zapasowa treść zapowiedzi rundy — nagrania mają własną, taką samą. */
+const ORDINALS = ['pierwsze', 'drugie', 'trzecie', 'czwarte', 'piąte', 'szóste', 'siódme', 'ósme'];
 const BEST_KEY = 'pnm.best';
 
 /** Maksymalna wysokość stosu w pikselach — na zapadni i w rękach. */
@@ -60,7 +62,7 @@ const BEAT = {
   beforeQuestion: 850, // cisza po ostatniej odpowiedzi, zanim padnie pytanie
   tension: 1500, // cisza po zatwierdzeniu
   spotlight: 420, // podświetlenie pola tuż przed otwarciem
-  emptyDoor: 900, // pusta zapadnia — otwiera się i nic nie spada
+  emptyDoor: 1200, // pusta zapadnia — otwiera się i nic nie spada
   loadedDoor: 1800, // zapadnia z pieniędzmi — paczki muszą dolecieć
   finish: 1300, // od poprawnej zapadni do podsumowania
 };
@@ -374,6 +376,7 @@ function renderChoice() {
   void el.bumper.offsetWidth;
   el.bumper.classList.add('is-running');
   sfx.bumper();
+  lektor.say({ key: `runda-${state.roundIndex + 1}`, text: `Pytanie ${ORDINALS[state.roundIndex]}.` });
 
   later(() => {
     el.bumper.hidden = true;
@@ -395,10 +398,8 @@ function renderChoice() {
     el.choice.hidden = false;
     el.choiceCards.querySelector('.choice__card')?.focus();
     lektor.say([
-      { text: 'Dwa hasła.', pauseAfter: 500 },
-      ...offer.flatMap(({ label }, i) => [
-        { text: i === 0 ? `Pierwsze: ${label}.` : `Drugie: ${label}.`, pauseAfter: 450 },
-      ]),
+      { key: 'wybierz', text: 'Dwa hasła. Proszę wybrać jedno.', pauseAfter: 450 },
+      ...offer.map(({ id, label }) => ({ key: `${id}:haslo`, text: `${label}.`, pauseAfter: 450 })),
     ]);
   }, BEAT.bumper);
 }
@@ -446,8 +447,16 @@ function renderQuestion() {
   el.waitingText.textContent = 'Najpierw odpowiedzi. Pytanie za chwilę.';
   el.btnSkip.textContent = 'Od razu pytanie';
   lektor.say([
-    ...(question.isFinal ? [{ text: 'Finał. Zostały dwie zapadnie.', pauseAfter: 500 }] : []),
-    { text: 'Oto odpowiedzi.' },
+    ...(question.isFinal
+      ? [
+          {
+            key: 'final',
+            text: 'Finał. Zostały dwie zapadnie. Cała kwota musi trafić na jedną odpowiedź.',
+            pauseAfter: 500,
+          },
+        ]
+      : []),
+    { key: 'odpowiedzi', text: 'Oto odpowiedzi.' },
   ]);
 
   runSteps(presentationSteps(question));
@@ -476,7 +485,12 @@ function presentationSteps(question) {
         // że na scenie właśnie coś się zapaliło
         el.waitingText.textContent = `${LETTERS[index]}. ${answer.text}`;
         sfx.answer();
-        lektor.say({ text: spoken[index], rate: 0.92 });
+        // litera i treść to dwa osobne nagrania — dzięki temu jedno nagranie
+        // odpowiedzi pasuje do każdej zapadni, na której akurat wyląduje
+        lektor.say([
+          { key: `litera-${LETTERS[index].toLowerCase()}`, text: `${LETTERS[index]}.` },
+          { key: `${question.id}:odp${answer.at}`, text: answer.spoken ?? answer.text, rate: 0.92 },
+        ]);
       },
     });
   });
@@ -497,8 +511,10 @@ function presentationSteps(question) {
       renderStakes();
       startTimer();
       lektor.say([
-        { text: question.spoken ?? question.text, rate: 0.93 },
-        ...(question.asOf ? [{ text: `Stan na rok ${question.asOf}.`, rate: 0.9 }] : []),
+        { key: `${question.id}:tresc`, text: question.spoken ?? question.text, rate: 0.93 },
+        ...(question.asOf
+          ? [{ key: `stan-${question.asOf}`, text: `Stan na rok ${question.asOf}.`, rate: 0.9 }]
+          : []),
       ]);
     },
   });
@@ -633,6 +649,11 @@ function lockIn(byTimeout = false) {
   });
 
   sfx.lock();
+  lektor.say(
+    byTimeout
+      ? { key: 'czas-minal', text: 'Czas minął.' }
+      : { key: 'zatwierdzone', text: 'Zatwierdzone. Nie ma odwrotu.' },
+  );
 
   let running = state.result.balanceBefore;
   const list = [];
@@ -691,8 +712,10 @@ function lockIn(byTimeout = false) {
             sfx.fall();
             animateMoney(to, 900);
             el.waitingText.textContent = `${LETTERS[index]} — w dół leci ${zl(stake)}.`;
+            lektor.say({ key: 'leci-w-dol', text: 'I te pieniądze lecą w dół.' });
           } else {
             el.waitingText.textContent = `${LETTERS[index]} — puste pole.`;
+            lektor.say({ key: 'puste-pole', text: 'To pole było puste.' });
           }
         },
       });
@@ -740,11 +763,22 @@ function showRoundSummary() {
   el.reveal.hidden = false;
   el.btnNext.focus();
 
+  // Kwoty czyta ekran, nie lektor. Nagrać da się tylko zdania stałe, a mieszanka
+  // prawdziwego głosu z syntezatorem w jednym zdaniu brzmi gorzej niż każde z nich
+  // z osobna — dlatego na koniec pada zawołanie z teleturnieju, nie liczba.
   const winner = question.answers[correct[0]];
   lektor.say([
-    { text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
-    { text: `${winner.spoken ?? winner.text}.`, rate: 0.86, pitch: 0.94, pauseAfter: 500 },
-    { text: kept === 0 ? 'Wszystko przepadło.' : `Zostaje ${zl(kept)}.`, rate: 0.9 },
+    { key: 'poprawna', text: 'Poprawna odpowiedź to:', rate: 0.88, pauseAfter: 550 },
+    {
+      key: `${question.id}:odp${winner.at}`,
+      text: `${winner.spoken ?? winner.text}.`,
+      rate: 0.86,
+      pitch: 0.94,
+      pauseAfter: 500,
+    },
+    kept === 0
+      ? { key: 'zostaje-nic', text: 'Niestety. Na stole nie został ani grosz.', rate: 0.9 }
+      : { key: 'wracaja', text: 'Pieniądze wracają do was!', rate: 0.95 },
   ]);
 }
 
@@ -947,9 +981,12 @@ async function setUpVoices() {
     el.voiceHint.textContent = 'Ta przeglądarka nie ma syntezatora mowy.';
     return;
   }
-  const { voices, voice, offlineSafe } = await lektor.init();
+  const { voices, voice, offlineSafe, pack, packLines } = await lektor.init();
 
-  el.btnVoice.hidden = voices.length === 0;
+  // Z pakietem nagrań lektor działa nawet wtedy, gdy system nie ma żadnego
+  // polskiego głosu — przycisk musi być widoczny także w tym przypadku.
+  el.btnVoice.hidden = voices.length === 0 && !pack;
+  el.voicePicker.disabled = pack;
   el.voicePicker.innerHTML = '';
   for (const item of voices) {
     const option = document.createElement('option');
@@ -959,12 +996,18 @@ async function setUpVoices() {
     el.voicePicker.append(option);
   }
 
-  if (!voices.length) {
+  if (pack) {
+    el.voiceHint.textContent =
+      `Gra mówi nagraniami lektora (${packLines} kwestii). Syntezator wchodzi tylko tam, ` +
+      'gdzie nagrania brakuje.';
+  } else if (!voices.length) {
     el.voiceHint.textContent =
       'Nie znaleziono polskiego głosu. Windows: doinstaluj pakiet języka polskiego z mową. ' +
       'macOS: Ustawienia → Dostępność → Treść mówiona → głos Zosia. Android: pakiet offline Google.';
   } else if (!offlineSafe) {
-    el.voiceHint.textContent = 'Wybrany głos działa przez sieć — bez internetu zamilknie.';
+    el.voiceHint.textContent =
+      'Ten głos liczy się w chmurze — brzmi najlepiej, ale bez internetu zamilknie. ' +
+      'Głos bez dopisku „przez sieć” działa offline.';
   } else {
     el.voiceHint.textContent = '';
   }
@@ -1025,7 +1068,7 @@ el.btnVoice.addEventListener('click', () => {
   lektor.unlock();
   const on = lektor.toggle();
   syncVoiceButton();
-  if (on) lektor.say('Lektor włączony.');
+  if (on) lektor.say({ key: 'wybierz', text: 'Lektor włączony.' });
 });
 el.voicePicker.addEventListener('change', () => {
   lektor.unlock();

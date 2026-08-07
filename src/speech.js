@@ -6,10 +6,18 @@
  * dotyka jej Content-Security-Policy — synteza mowy nie jest z punktu widzenia
  * CSP żadnym pobraniem, więc nie trzeba otwierać `media-src`.
  *
- * Cena: głos daje system, nie my. Dlatego bierzemy wyłącznie głosy
- * z `localService === true`. To gwarantuje działanie bez sieci, a przy okazji
- * omija błąd Chromium, w którym mowa z głosów serwerowych urywa się po
- * kilkunastu sekundach.
+ * Cena: głos daje system, nie my. Kiedyś braliśmy wyłącznie głosy
+ * z `localService === true`, żeby gra działała bez sieci. Ta zasada okazała się
+ * za droga: najlepsze polskie głosy — Google Polski, Microsoft Marek i Zofia
+ * w wersji „Natural” — chodzą po sieci, a to, co system ma na dysku, brzmi przy
+ * nich jak automat z dworca. Skoro gra i tak jest do grania w przeglądarce,
+ * wybieramy najlepszy dostępny głos, a o pracy przez sieć uczciwie uprzedzamy.
+ * Kto woli offline, przestawia głos w oknie „Zasady”.
+ *
+ * Błąd Chromium, przez który mowa z głosów serwerowych urywa się po
+ * kilkunastu sekundach, omijamy inaczej: dzielimy tekst na krótkie kawałki.
+ * Najdłuższa kwestia w tej grze ma sto kilkanaście znaków, więc limit i tak
+ * nie jest zagrożony.
  *
  * SSML odpada — przeglądarki go nie wspierają, a macOS potrafi przeczytać
  * znaczniki na głos. Pauzy i zmiany tempa robimy więc dzieląc tekst na
@@ -25,6 +33,8 @@ const VOICE_KEY = 'pnm.glos';
 const PREFERRED = [
   'google polski',
   'google polish',
+  'marek',
+  'zofia',
   'zosia',
   'krzysztof',
   'ewa',
@@ -33,6 +43,14 @@ const PREFERRED = [
   'paulina',
   'adam',
 ];
+
+/**
+ * Głosy nowej generacji. Nazwa zdradza je we wszystkich przeglądarkach:
+ * Microsoft dopisuje „Natural”, Google „WaveNet”, Apple „Premium” albo
+ * „Enhanced”. Różnica w brzmieniu jest większa niż między dwoma zwykłymi
+ * głosami, dlatego premia jest tu wyższa niż za cokolwiek innego.
+ */
+const NATURAL = /natural|neural|wavenet|premium|enhanced|studio|journey/;
 
 /** Syntezatory ostatniej szansy — zrozumiałe, ale brzmią jak robot z lat 80. */
 const ROBOTIC = /espeak|festival|mbrola|pico|flite|sam\b/;
@@ -54,10 +72,11 @@ const isPolish = (v) => /^pl($|[-_])/i.test(v.lang || '');
 function score(v) {
   const name = `${v.name || ''} ${v.voiceURI || ''}`.toLowerCase();
   let points = 0;
+  if (NATURAL.test(name)) points += 1500; // to słychać od pierwszego zdania
   const rank = PREFERRED.findIndex((k) => name.includes(k));
   if (rank >= 0) points += (PREFERRED.length - rank) * 100;
-  if (ROBOTIC.test(name)) points -= 1000;
-  if (v.localService) points += 400; // bez sieci i bez błędu z urywaniem
+  if (ROBOTIC.test(name)) points -= 3000;
+  if (v.localService) points += 150; // miły dodatek, ale nie kosztem brzmienia
   if (/pl[-_]pl/i.test(v.lang)) points += 20;
   return points;
 }
@@ -109,9 +128,9 @@ export async function init() {
   available = all.filter(isPolish).sort((a, b) => score(b) - score(a));
 
   const remembered = readSetting(VOICE_KEY);
+  // lista jest już posortowana od najlepszego, więc domyślnie bierzemy pierwszy
   voice =
     available.find((v) => v.voiceURI === remembered || v.name === remembered) ??
-    available.find((v) => v.localService) ??
     available[0] ??
     null;
 
@@ -136,6 +155,16 @@ export function setVoice(idOrName) {
 
 export function isOn() {
   return enabled && Boolean(voice);
+}
+
+/** Czy gracz w ogóle chce słyszeć lektora — niezależnie od tego, czym mówi. */
+export function isEnabled() {
+  return enabled;
+}
+
+/** Czy jest czym mówić z syntezatora systemowego. */
+export function hasVoice() {
+  return Boolean(voice);
 }
 
 export function toggle() {
