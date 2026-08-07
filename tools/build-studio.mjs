@@ -91,6 +91,7 @@ h1 { margin: 0; font-size: clamp(1.3rem, 1rem + 1.6vw, 2rem); }
 .track i { display: block; height: 100%; background: linear-gradient(90deg, #ffdf8c, var(--gold)); transition: width 0.25s ease; }
 .slot { text-align: center; padding: 1.4rem 0.6rem; border: 1px dashed var(--line); border-radius: 14px; }
 .slot.is-done { border-color: rgba(52, 226, 160, 0.5); background: rgba(52, 226, 160, 0.06); }
+.slot.is-stale { border-color: rgba(255, 194, 71, 0.6); background: rgba(255, 194, 71, 0.07); }
 .slot__mood { color: var(--gold); font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; }
 .slot__text { margin: 0.5rem auto; max-width: 32ch; font-size: clamp(1.2rem, 1rem + 1.4vw, 1.9rem); font-weight: 700; line-height: 1.25; text-wrap: balance; }
 .slot__key { color: rgba(168, 159, 208, 0.5); font-size: 0.7rem; font-family: ui-monospace, monospace; }
@@ -183,8 +184,9 @@ details p, details ol { max-width: 66ch; }
     <span id="total"></span>
     <div class="row" style="margin:0">
       <button id="save" type="button">pack.js speichern</button>
+      <button id="list" type="button">Textliste (CSV)</button>
       <label class="file">pack.js laden<input type="file" id="load-pack" accept=".js"></label>
-      <label class="file">Dateien einlesen<input type="file" id="load-files" accept="audio/*" multiple></label>
+      <label class="file">Dateien einlesen<input type="file" id="load-files" accept="audio/*,.mp3,.wav,.ogg,.m4a,.webm" multiple></label>
       <button id="wipe" type="button">alles löschen</button>
     </div>
   </div>
@@ -201,8 +203,36 @@ details p, details ol { max-width: 66ch; }
       <p>
         Kein Mikrofon, oder der Browser lässt nicht zu? Nimm mit einem beliebigen Programm auf
         (Sprachmemo, Audacity, Windows-Sprachrekorder), benenne jede Datei nach dem grauen
-        Schlüssel unter dem Satz — Doppelpunkte werden zu <code>__</code>, also
-        <code>geo-wawel__tresc.mp3</code> — und lies sie über „Dateien einlesen" ein.
+        Namen unter dem Satz — also <code>geo-wawel__tresc.mp3</code> — und lies sie über
+        „Dateien einlesen" ein. Das geht auch mit mp3-Dateien aus ElevenLabs.
+      </p>
+    </details>
+    <details>
+      <summary>Fertige mp3-Dateien einlesen (z. B. aus ElevenLabs)</summary>
+      <ol>
+        <li>Oben die Gruppe wählen, um die es geht — meist <b>Prowadzący</b>.</li>
+        <li>
+          „Textliste (CSV)" drücken. Darin steht für jeden Satz der Text und der Dateiname,
+          unter dem die Aufnahme erwartet wird.
+        </li>
+        <li>Jeden Text erzeugen lassen, die mp3 herunterladen und genau so umbenennen.</li>
+        <li>„Dateien einlesen" → alle auf einmal auswählen. Fertig.</li>
+      </ol>
+      <p>
+        Die Endung ist egal, mp3 und wav funktionieren beide. Wichtig ist nur der Name vor dem
+        Punkt. Ein angehängtes <code>(1)</code> vom Browser wird automatisch ignoriert.
+      </p>
+    </details>
+    <details>
+      <summary>Wenn sich Fragen später ändern</summary>
+      <p>
+        Zu jeder Aufnahme wird gespeichert, wie der Satz zum Zeitpunkt der Aufnahme lautete.
+        Ändert sich der Text später, erscheint die Aufnahme hier als <b>veraltet</b> — im
+        Reiter, beim Satz selbst und beim Speichern. Nur diese eine Zeile muss dann neu.
+      </p>
+      <p>
+        Die 32 Sätze unter <b>Prowadzący</b> hängen an keiner Frage. Die kann man aufnehmen,
+        ohne dass ein späteres Update am Fragenkatalog etwas daran ändert.
       </p>
     </details>
   </div>

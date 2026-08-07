@@ -22,7 +22,33 @@ const GROUPS = window.GROUPS;
 const MOOD_HINTS = window.MOOD_HINTS;
 
 const $ = (id) => document.getElementById(id);
-const clips = new Map(); // klucz → { blob, type }
+const clips = new Map(); // klucz → { blob, type, hash }
+
+/**
+ * Odcisk treści zdania (FNV-1a).
+ *
+ * Pytania w grze będą się jeszcze zmieniać, a klucz nagrania zostaje ten sam.
+ * Bez odcisku nagranie starej wersji zdania siedziałoby w pakiecie w nieskończoność
+ * i lektor czytałby coś innego, niż stoi na ekranie. Z odciskiem widać, które
+ * kwestie trzeba powtórzyć — i to jedyny sposób, żeby to w ogóle zauważyć.
+ */
+function fingerprint(text) {
+  let h = 2166136261;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/** Nagranie jest, ale zdanie zmieniło treść od czasu nagrania. */
+function isStale(key) {
+  const clip = clips.get(key);
+  return Boolean(clip && clip.hash && clip.hash !== fingerprint(LINES[key]?.text ?? ''));
+}
+
+const staleKeys = () => Object.keys(LINES).filter(isStale);
 
 let order = [];
 let at = 0;
@@ -98,10 +124,11 @@ function renderTabs() {
   for (const g of GROUPS) {
     const keys = Object.keys(LINES).filter((k) => LINES[k].group === g.id);
     const done = keys.filter((k) => clips.has(k)).length;
+    const stale = keys.filter(isStale).length;
     const tab = document.createElement('button');
     tab.className = `tab${g.id === group ? ' is-active' : ''}`;
     tab.type = 'button';
-    tab.innerHTML = `<b></b><span>${done} / ${keys.length}</span>`;
+    tab.innerHTML = `<b></b><span>${done} / ${keys.length}${stale ? ` · ${stale} veraltet` : ''}</span>`;
     tab.querySelector('b').textContent = g.name;
     tab.title = g.note;
     tab.onclick = () => {
@@ -126,9 +153,14 @@ function render() {
 
   $('text').textContent = line ? line.text : 'Nichts zu tun.';
   $('mood').textContent = line ? MOOD_HINTS[line.mood] ?? '' : '';
-  $('key').textContent = key ?? '';
-  $('slot').classList.toggle('is-done', Boolean(key && clips.has(key)));
-  $('state').textContent = key && clips.has(key) ? 'aufgenommen' : 'noch nichts';
+  $('key').textContent = key ? fileFor(key) : '';
+  $('slot').classList.toggle('is-done', Boolean(key && clips.has(key)) && !isStale(key));
+  $('slot').classList.toggle('is-stale', Boolean(key && isStale(key)));
+  $('state').textContent = !key || !clips.has(key)
+    ? 'noch nichts'
+    : isStale(key)
+      ? 'aufgenommen — aber der Satz hat sich seitdem geändert'
+      : 'aufgenommen';
 
   $('play').disabled = !key || !clips.has(key);
   $('again').disabled = !key || !clips.has(key);
@@ -136,7 +168,9 @@ function render() {
   $('next').disabled = at >= order.length - 1;
 
   const total = Object.keys(LINES).length;
-  $('total').textContent = `${clips.size} von ${total} Sätzen im Kasten`;
+  const stale = staleKeys().length;
+  $('total').textContent =
+    `${clips.size} von ${total} Sätzen im Kasten` + (stale ? ` · ${stale} veraltet` : '');
   $('save').disabled = clips.size === 0;
 }
 
@@ -223,8 +257,9 @@ async function toggleRecord() {
       render();
       return;
     }
-    clips.set(key, { blob, type });
-    put(key, { blob, type });
+    const clip = { blob, type, hash: fingerprint(LINES[key].text) };
+    clips.set(key, clip);
+    put(key, clip);
     say('Gespeichert.', 'is-good');
     if ($('auto').checked && at < order.length - 1) at++;
     render();
@@ -259,6 +294,38 @@ function redo() {
  * Wejście i wyjście
  * ------------------------------------------------------------------ */
 
+/** Nazwa pliku dla kwestii — dwukropek nie wszędzie jest legalny w nazwie. */
+const fileFor = (key) => key.replace(/:/g, '__');
+
+/**
+ * Spis kwestii do pobrania.
+ *
+ * Kto woli nagrać gdzie indziej — u siebie w programie, w ElevenLabs, kimkolwiek —
+ * dostaje tu tekst i nazwę pliku obok siebie. To wszystko, czego trzeba, żeby
+ * wrócić z gotowymi nagraniami i wczytać je hurtem.
+ */
+function saveList() {
+  const rows = [['plik', 'ton', 'tekst']];
+  for (const key of order) {
+    rows.push([`${fileFor(key)}.mp3`, MOOD_HINTS[LINES[key].mood] ?? '', LINES[key].text]);
+  }
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\r\n');
+  // BOM — bez niego Excel zjada polskie znaki
+  download(new Blob([`﻿${csv}`], { type: 'text/csv' }), `kwestie-${group}.csv`);
+  say(`Liste mit ${order.length} Sätzen gespeichert.`, 'is-good');
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 const toBase64 = (blob) =>
   new Promise((resolve) => {
     const reader = new FileReader();
@@ -272,21 +339,18 @@ async function savePack() {
   const lines = {};
   for (const [key, clip] of clips) {
     const data = await toBase64(clip.blob);
-    if (data) lines[key] = { d: data, t: clip.type };
+    if (data) lines[key] = { d: data, t: clip.type, h: clip.hash };
   }
   const file =
     '/** Pakiet lektora — nagrany własnym głosem w nagrywarce. */\n' +
     `window.PNM_VOICE = ${JSON.stringify({ format: 'audio/webm', lines })};\n`;
-  const url = URL.createObjectURL(new Blob([file], { type: 'text/javascript' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'pack.js';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  download(new Blob([file], { type: 'text/javascript' }), 'pack.js');
+  const stale = staleKeys().length;
   say(
     `pack.js gespeichert (${Object.keys(lines).length} Sätze). ` +
-      'Die Datei nach dist/assets/voice/ legen.',
-    'is-good',
+      'Die Datei nach dist/assets/voice/ legen.' +
+      (stale ? ` Achtung: ${stale} davon sind veraltet.` : ''),
+    stale ? 'is-bad' : 'is-good',
   );
 }
 
@@ -306,7 +370,7 @@ async function importPack(file) {
     const data = typeof value === 'string' ? value : value.d;
     const type = typeof value === 'string' ? parsed.format : value.t;
     const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const clip = { blob: new Blob([bytes], { type }), type };
+    const clip = { blob: new Blob([bytes], { type }), type, hash: value.h };
     clips.set(key, clip);
     put(key, clip);
     added++;
@@ -325,12 +389,20 @@ function importFiles(files) {
   let taken = 0;
   const unknown = [];
   for (const file of files) {
-    const key = file.name.replace(/\.[^.]+$/, '').replace(/__/g, ':');
+    const key = file.name
+      .replace(/\.[^.]+$/, '') // rozszerzenie
+      .replace(/\s*\(\d+\)$/, '') // „(1)” dopisane przez przeglądarkę przy powtórce
+      .trim()
+      .replace(/__/g, ':');
     if (!LINES[key]) {
       unknown.push(file.name);
       continue;
     }
-    const clip = { blob: file, type: file.type || 'audio/mpeg' };
+    const clip = {
+      blob: file,
+      type: file.type || 'audio/mpeg',
+      hash: fingerprint(LINES[key].text),
+    };
     clips.set(key, clip);
     put(key, clip);
     taken++;
@@ -339,7 +411,11 @@ function importFiles(files) {
   render();
   say(
     `${taken} Dateien übernommen` +
-      (unknown.length ? `, ${unknown.length} mit unbekanntem Namen übersprungen.` : '.'),
+      (unknown.length
+        ? `. ${unknown.length} übersprungen — der Name passt zu keinem Satz: ${unknown
+            .slice(0, 3)
+            .join(', ')}${unknown.length > 3 ? ' …' : ''}`
+        : '.'),
     taken ? 'is-good' : 'is-bad',
   );
 }
@@ -369,6 +445,7 @@ $('next').onclick = () => {
   render();
 };
 $('save').onclick = savePack;
+$('list').onclick = saveList;
 $('wipe').onclick = wipe;
 $('load-pack').onchange = (e) => e.target.files[0] && importPack(e.target.files[0]);
 $('load-files').onchange = (e) => e.target.files.length && importFiles([...e.target.files]);

@@ -143,6 +143,29 @@ Spiel unter "Zasady".
 Später weitermachen: die Nagrywarka öffnen, "pack.js laden", und sie
 springt zum ersten fehlenden Satz.
 
+FERTIGE MP3-DATEIEN EINLESEN (auch aus ElevenLabs)
+Du musst nicht selbst sprechen — die Seite nimmt jede Audiodatei an.
+
+  1. Oben die Gruppe wählen, meist "Prowadzący".
+  2. "Textliste (CSV)" drücken. Darin steht zu jedem Satz der Text
+     und der Dateiname, unter dem die Aufnahme erwartet wird.
+  3. Jeden Text erzeugen lassen, die mp3 herunterladen und genau
+     so umbenennen (wracaja.mp3, poprawna.mp3, …).
+  4. "Dateien einlesen" → alle auf einmal auswählen.
+
+mp3 und wav funktionieren beide. Ein angehängtes "(1)" vom Browser
+wird automatisch ignoriert.
+
+WENN SICH FRAGEN SPÄTER ÄNDERN
+Zu jeder Aufnahme wird gespeichert, wie der Satz damals lautete.
+Ändert er sich, zeigt die Nagrywarka die Aufnahme als "veraltet" an —
+im Reiter, beim Satz und beim Speichern. Nur diese eine Zeile muss neu.
+
+Die 32 Sätze unter "Prowadzący" hängen an keiner Frage. Die kannst du
+jetzt aufnehmen, egal wie oft der Fragenkatalog noch wächst. Alles
+andere liest so lange die Computerstimme — dann hört man beides
+gemischt, und dafür lohnt sich Stufe 2 aus Abschnitt 2.
+
 FALLS DER BROWSER DAS MIKROFON NICHT FREIGIBT
 (kann bei per Doppelklick geöffneten Dateien passieren, bei Safari
 immer): mit irgendeinem Programm aufnehmen — Sprachmemo, Audacity,
