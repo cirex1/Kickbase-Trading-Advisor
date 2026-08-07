@@ -52,7 +52,7 @@ echo "=========================================="
 echo "Die Aufnahmen liegen in .voice-cache/"
 echo "Hör sie dir an. Passt die Stimme?"
 echo
-read -r -p "Alle 617 Sätze aufnehmen? (j/n): " WEITER
+read -r -p "Alle übrigen Sätze aufnehmen? (j/n): " WEITER
 if [ "$WEITER" != "j" ] && [ "$WEITER" != "J" ]; then
   echo
   echo "Abgebrochen. Nichts verloren – die fünf Sätze bleiben gespeichert."

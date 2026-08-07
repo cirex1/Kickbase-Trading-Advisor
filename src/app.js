@@ -109,6 +109,7 @@ const el = {
   question: $('question'),
   category: $('q-category'),
   questionText: $('q-text'),
+  questionAsOf: $('q-asof'),
   finalHint: $('q-final'),
 
   stage: $('stage'),
@@ -136,6 +137,7 @@ const el = {
   revealHeadline: $('reveal-headline'),
   revealDetail: $('reveal-detail'),
   revealNote: $('reveal-note'),
+  revealSource: $('reveal-source'),
   btnNext: $('btn-next'),
 
   confetti: $('confetti'),
@@ -425,6 +427,8 @@ function renderQuestion() {
   // Treść pytania jest już w układzie, tylko niewidoczna. Zajmuje docelową
   // wysokość, więc w chwili, gdy padnie, scena nie podskoczy.
   el.questionText.textContent = question.text;
+  el.questionAsOf.hidden = !question.asOf;
+  el.questionAsOf.textContent = question.asOf ? `stan na rok ${question.asOf}` : '';
   el.question.classList.add('is-teasing');
 
   el.stage.classList.remove('is-idle');
@@ -492,7 +496,10 @@ function presentationSteps(question) {
       el.tray.hidden = false;
       renderStakes();
       startTimer();
-      lektor.say({ text: question.spoken ?? question.text, rate: 0.93 });
+      lektor.say([
+        { text: question.spoken ?? question.text, rate: 0.93 },
+        ...(question.asOf ? [{ text: `Stan na rok ${question.asOf}.`, rate: 0.9 }] : []),
+      ]);
     },
   });
 
@@ -719,6 +726,15 @@ function showRoundSummary() {
     question.label && question.label !== question.category ? ` (${question.category})` : '';
   el.revealNote.textContent =
     `Poprawna odpowiedź${topic} — ${names}. ${question.note ?? ''}`.trim();
+
+  // Pytania o rekordy pokazują, na kiedy liczony jest stan i skąd pochodzi —
+  // tak jak w teleturnieju, gdzie prowadzący czyta to razem z rozwiązaniem.
+  const credit = [
+    question.asOf ? `Stan na rok ${question.asOf}` : '',
+    question.source ? `źródło: ${question.source}` : '',
+  ].filter(Boolean);
+  el.revealSource.hidden = credit.length === 0;
+  el.revealSource.textContent = credit.length ? `${credit.join(', ')}.` : '';
 
   el.btnNext.textContent = state.outcome === 'continue' ? 'Następna runda' : 'Podsumowanie';
   el.reveal.hidden = false;

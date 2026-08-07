@@ -88,6 +88,50 @@ test('starczy pytań na rozgrzewkę i na resztę partii', () => {
   );
 });
 
+/**
+ * Pytanie o rekord bez podanego stanu i źródła to pytanie z terminem ważności —
+ * dokładnie ten błąd, przez który teleturniej musiał kiedyś tłumaczyć się
+ * z najdłuższego metra poza Chinami. Z rokiem i wykazem pytanie przestaje
+ * dotyczyć świata, a zaczyna dotyczyć konkretnego zestawienia.
+ */
+const SUPERLATIVE =
+  /\b(rekord\w*|naj(wię|mniej|dłuż|krót|wyż|niż|star|młod|szyb|wolniej|częś|licz|głęb|gęst|bogat|popularniej|cieplej|zimniej|lepsz)\w*)/i;
+
+test('pytania o rekordy podają stan i źródło albo powód, dla którego ich nie ma', () => {
+  const records = QUESTIONS.filter((q) => SUPERLATIVE.test(q.text));
+  assert.ok(records.length > 0, 'żadne pytanie nie pyta o rekord — regexp przestał działać?');
+
+  for (const q of records) {
+    if (q.timeless) {
+      // wyjście awaryjne dla stopni najwyższych, które rekordem nie są:
+      // składu powietrza ani progu „co najmniej” nikt nie pobije
+      assert.ok(
+        typeof q.timeless === 'string' && q.timeless.length > 10,
+        `${q.id}: timeless musi tłumaczyć, dlaczego rok jest zbędny`,
+      );
+      assert.ok(!q.asOf && !q.source, `${q.id}: albo timeless, albo stan i źródło`);
+      continue;
+    }
+    assert.ok(
+      Number.isInteger(q.asOf) && q.asOf >= 2000,
+      `${q.id}: pytanie o rekord bez roku (asOf)`,
+    );
+    assert.ok(
+      typeof q.source === 'string' && q.source.length > 2,
+      `${q.id}: pytanie o rekord bez źródła (source)`,
+    );
+  }
+});
+
+test('stan i źródło chodzą parą, także poza pytaniami o rekordy', () => {
+  for (const q of QUESTIONS) {
+    if (q.asOf || q.source) {
+      assert.ok(q.asOf && q.source, `${q.id}: podany tylko jeden z dwóch — stan albo źródło`);
+      assert.ok(q.asOf <= new Date().getFullYear(), `${q.id}: stan z przyszłości`);
+    }
+  }
+});
+
 test('stałe gry trzymają się razem', () => {
   assert.equal(DOORS_PLAN.length, ROUND_COUNT);
   assert.equal(ROUND_SECONDS.length, ROUND_COUNT);

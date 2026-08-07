@@ -13,7 +13,9 @@ Kein Build-Schritt, keine Abhängigkeiten, kein Framework — nur HTML, CSS und 
 ## Spielprinzip
 
 1. Du bekommst **40 Bündel zu je 25 000 zł** — zusammen 1 000 000 zł.
-2. Vor jeder Frage wählst du eine von **zwei Kategorien**. Die Frage fällt erst danach.
+2. Vor jeder Frage wählst du eines von **zwei Hasła**. Was sich dahinter verbirgt, zeigt sich
+   erst danach — und zwar in dieser Reihenfolge: zuerst leuchten **die Antworten einzeln** auf,
+   dann erst fällt die Frage. Mit ihr startet die Uhr.
 3. Unter jeder Antwort liegt eine Falltür. Du verteilst **alle** Bündel darauf: alles auf eine
    Klappe oder abgesichert auf mehrere.
 4. **Eine Falltür muss leer bleiben** — auf alle gleichzeitig zu setzen ist nicht erlaubt. Das
@@ -26,7 +28,7 @@ Kein Build-Schritt, keine Abhängigkeiten, kein Framework — nur HTML, CSS und 
 7. Acht Runden. Im **Finale** bleiben nur zwei Falltüren, also alles auf eine Antwort.
    Bei 0 zł ist Schluss.
 
-Zeitlimit pro Runde: 90 s zu Beginn, 50 s im Finale.
+Zeitlimit pro Runde: 60 s, im Finale 45 s. Es läuft erst ab dem Moment, in dem die Frage steht.
 
 ## Spielen
 
@@ -145,27 +147,51 @@ Ein Eintrag in `src/questions.js` genügt:
 
 ```js
 {
-  id: 'geo-wisla',              // eindeutig
-  category: 'Geografia',
-  difficulty: 3,                // 1 = leicht … 5 = schwer
-  text: 'Która rzeka jest najdłuższa w Polsce?',
+  id: 'geo-zrodla',             // eindeutig
+  label: 'Dwa strumienie',      // das Hasło auf der Tafel — verrät das Thema nicht
+  category: 'Geografia',        // das echte Thema, erst mit der Auflösung sichtbar
+  difficulty: 3,                // 1 = taugt zum Aufwärmen, sonst nur ein Hinweis für den Autor
+  text: 'Źródła Wisły znajdują się na stokach:',
   answers: [                    // genau vier — so viele Falltüren gibt es
-    { text: 'Wisła', correct: true },   // genau eine richtige
-    { text: 'Odra' },
-    { text: 'Warta' },
-    { text: 'Bug' },
+    { text: 'Baraniej Góry', correct: true },   // genau eine richtige
+    { text: 'Babiej Góry', rival: true },       // genau ein starker Gegenkandidat
+    { text: 'Pilska' },
+    { text: 'Turbacza' },
   ],
-  note: 'Wisła ma 1047 km długości.',   // wird nach dem Öffnen eingeblendet
+  note: 'Czarna i Biała Wisełka spływają z Baraniej Góry w Beskidzie Śląskim.',
 }
 ```
 
-* Genau **vier** Antworten, davon **genau eine** richtige.
+* Genau **vier** Antworten, davon **genau eine** richtige und **genau ein** `rival`.
+  Der `rival` überlebt das Kürzen auf drei und zwei Türen — sonst wäre das Finale geschenkt.
+* `label` ist nie der Kategoriename. Es soll erst im Nachhinein einleuchten.
 * Die Reihenfolge wird im Spiel gemischt.
-* Weil vor jeder Frage zwei Kategorien zur Wahl stehen, braucht jede Schwierigkeitsstufe
-  Fragen aus **mehreren Kategorien** — sonst hätte die Auswahl nichts anzubieten. `npm test`
+* Steht eine Zahl im Text, gehört eine `spoken`-Fassung dazu: der Sprecher liest
+  „tysiąc czterysta dziesięć“, der Spieler sieht „1410“.
+* Weil vor jeder Frage zwei Hasła zur Wahl stehen, braucht der Katalog Fragen aus
+  **mehreren Kategorien** — sonst hätte die Auswahl nichts anzubieten. `npm test`
   rechnet nach, ob genug übrig bleibt, wenn frühere Runden schon Fragen verbraucht haben.
 * Gute Fragen prüfen nicht das Gedächtnis, sondern den Reflex: der Tag auf der Venus ist länger
   als ihr Jahr, der Februar 2100 hat 28 Tage, der nächste Verwandte des Flusspferds ist der Wal.
+
+### Rekordfragen: nur mit Stand und Quelle
+
+„Größte“, „längste“, „meiste“ — solche Fragen haben ein Verfallsdatum. In der echten Show
+nennt der Moderator deshalb Jahr und Quelle, und genau das verlangt der Katalog auch:
+
+```js
+{
+  text: 'Najludniejszym państwem świata są:',
+  // …
+  asOf: 2024,                              // steht unter der Frage, noch vor dem Antworten
+  source: 'ONZ, „World Population Prospects”',  // steht bei der Auflösung
+}
+```
+
+Nicht jeder Superlativ ist ein Rekord: „co najmniej 25 punktów“ ist eine Regel, und der
+Stickstoffanteil der Luft ändert sich nicht jahrgangsweise. Solche Fragen bekommen statt
+`asOf`/`source` ein `timeless: '<ein Satz, warum kein Jahr nötig ist>'`. Ein Test prüft beides
+und lässt keine Rekordfrage ohne das eine oder das andere durch.
 
 ## Spielcode (Seed)
 

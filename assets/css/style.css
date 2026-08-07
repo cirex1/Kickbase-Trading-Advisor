@@ -609,12 +609,24 @@ input:focus-visible {
  * Gdyby jej wtedy nie było, scena podskoczyłaby o jedną, dwie albo trzy
  * linijki dokładnie w chwili, w której pytanie pada.
  */
-.question.is-teasing .question__text {
+.question.is-teasing .question__text,
+.question.is-teasing .question__asof {
   visibility: hidden;
 }
 
-.question:not(.is-teasing) .question__text {
+.question:not(.is-teasing) .question__text,
+.question:not(.is-teasing) .question__asof {
   animation: question-in 0.5s ease-out both;
+}
+
+/* „stan na rok …” — przy pytaniach o rekordy stoi razem z pytaniem,
+   bo bez tego pytanie o największe cokolwiek nie ma jednej odpowiedzi. */
+.question__asof {
+  margin: 0.35rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 @keyframes question-in {
@@ -1093,6 +1105,15 @@ input:focus-visible {
   max-width: 62ch;
   color: var(--ink-dim);
   font-size: 0.86rem;
+}
+
+/* Stan i źródło — przy pytaniach o rekordy, dokładnie jak na antenie. */
+.reveal__source {
+  margin: -0.2rem 0 0.4rem;
+  max-width: 62ch;
+  color: rgba(168, 159, 208, 0.62);
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
 }
 
 /* --------------------------------------------------------------------- */

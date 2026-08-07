@@ -121,6 +121,14 @@ const MOOD = {
 const FIXED = {
   intro: ['Witamy w grze Postaw na milion. Przed wami milion złotych w czterdziestu paczkach.', 'spokojnie'],
   wybierz: ['Dwa hasła. Proszę wybrać jedno.', 'spokojnie'],
+  // odpowiedzi idą pojedynczo, pytanie dopiero po nich
+  odpowiedzi: ['Oto odpowiedzi.', 'napiecie'],
+  ...Object.fromEntries(
+    ['A', 'B', 'C', 'D', 'E', 'F'].map((litera) => [
+      `litera-${litera.toLowerCase()}`,
+      [`${litera}.`, 'spokojnie'],
+    ]),
+  ),
   rozkladaj: ['Proszę rozłożyć pieniądze. Jedna zapadnia musi zostać pusta.', 'spokojnie'],
   'czas-start': ['Czas start!', 'triumf'],
   'czas-minal': ['Czas minął.', 'spokojnie'],
@@ -150,6 +158,11 @@ async function collectLines() {
 
   for (const [key, [text, mood]] of Object.entries(FIXED)) {
     lines.set(key, { text, mood });
+  }
+
+  // „stan na rok …” prowadzący czyta razem z pytaniem o rekord
+  for (const rok of [...new Set(QUESTIONS.map((q) => q.asOf).filter(Boolean))].sort()) {
+    lines.set(`stan-${rok}`, { text: `Stan na rok ${rok}.`, mood: 'spokojnie' });
   }
 
   for (const question of QUESTIONS) {

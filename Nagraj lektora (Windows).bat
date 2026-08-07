@@ -49,7 +49,7 @@ echo ==========================================
 echo Die Aufnahmen liegen in .voice-cache\
 echo Hoer sie dir an. Passt die Stimme?
 echo.
-set /p WEITER=Alle 617 Saetze aufnehmen? (j/n):
+set /p WEITER=Alle uebrigen Saetze aufnehmen? (j/n):
 if /i not "!WEITER!"=="j" (
   echo.
   echo Abgebrochen. Nichts verloren - die fuenf Saetze bleiben gespeichert.

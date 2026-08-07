@@ -45,7 +45,7 @@ Nur wenn du willst. Das Spiel funktioniert auch ohne.
 
   Schritt 4   Er nimmt zuerst NUR FÜNF Sätze auf und fragt dann nach.
               Hör sie dir an (Ordner .voice-cache) und entscheide.
-              Erst wenn du "j" tippst, laufen die restlichen 612.
+              Erst wenn du "j" tippst, läuft der ganze Rest.
 
 Abbrechen ist immer erlaubt. Beim nächsten Start macht er dort weiter, wo
 er aufgehört hat — nichts wird doppelt bezahlt.
@@ -65,6 +65,7 @@ auch nicht mir. Ich brauche nur pack.js.
 WAS KOSTET DAS
 --------------
 
-Nur die Aufnahme, ein einziges Mal: rund 12 500 Zeichen für alle 617 Sätze.
+Nur die Aufnahme, ein einziges Mal: rund 21 000 Zeichen für gut tausend Sätze.
+Die genaue Zahl nennt der Helfer beim Start.
 Beim Spielen entstehen nie wieder Kosten — die Stimme steckt dann in der
 Datei und funktioniert auch ohne Internet.
