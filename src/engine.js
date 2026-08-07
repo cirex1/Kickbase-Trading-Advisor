@@ -38,6 +38,20 @@ export const ROUND_SECONDS = [60, 60, 60, 60, 60, 60, 60, 45];
  */
 export const WARMUP_DIFFICULTY = 1;
 
+/**
+ * Najniższa trudność, po jaką sięga losowanie w kolejnych rundach.
+ *
+ * To nie jest drabinka: pula pozostaje jednym workiem, a `difficulty` nadal nie
+ * ustawia pytań w kolejności. Zmienia się tylko to, z jakiego wycinka worka
+ * wolno losować — bo gracz, który zna odpowiedź, kładzie wszystko na jedną
+ * zapadnię i nie traci ani grosza. Przy czterech polach trudność pytania jest
+ * jedynym źródłem ryzyka, jakie w tej grze istnieje.
+ *
+ * Gdyby próg okazał się nie do przejścia, wystarczy tu wpisać same dwójki —
+ * dobór pytań wróci do jednego wielkiego worka.
+ */
+export const DIFFICULTY_FLOOR = [1, 2, 2, 3, 3, 4, 4, 5];
+
 /** Ile haseł dostaje gracz do wyboru przed pytaniem. */
 export const CATEGORY_CHOICES = 2;
 
@@ -112,17 +126,45 @@ export function isWarmupRound(state) {
   return state.roundIndex === 0;
 }
 
+/** Ile najmniej trudne pytanie może mieć w tej rundzie. */
+export function difficultyFloor(state) {
+  const plan = state.difficultyFloor ?? DIFFICULTY_FLOOR;
+  return plan[Math.min(state.roundIndex, plan.length - 1)] ?? 2;
+}
+
 /**
- * Pytania dostępne w danej rundzie: jeszcze niezadane, a w pierwszej rundzie
- * dodatkowo tylko te rozgrzewkowe. Gdyby którejś puli zabrakło, bierzemy
- * cokolwiek zostało — brak pytania musiałby przerwać grę, a to gorsze niż
- * zadanie łatwiejszego.
+ * Czy ten wycinek puli wystarczy, żeby zbudować ofertę.
+ *
+ * Same dwa pytania to za mało — hasła mają pochodzić z różnych dziedzin,
+ * inaczej wybór sprowadza się do dwóch pytań o to samo.
+ */
+function enoughToOffer(list) {
+  return list.length >= CATEGORY_CHOICES && new Set(list.map((q) => q.category)).size >= CATEGORY_CHOICES;
+}
+
+/**
+ * Pytania dostępne w danej rundzie: jeszcze niezadane, a poza tym mieszczące się
+ * w progu trudności. Próg obniżamy stopniowo, dopóki nie zostanie z czego wybrać —
+ * brak pytania musiałby przerwać grę, a to gorsze niż zadanie łatwiejszego.
+ *
+ * Pierwsza runda rządzi się swoim prawem: to rozgrzewka, więc losujemy do niej
+ * wyłącznie pytania oznaczone jako łatwe.
  */
 export function availableQuestions(state) {
   const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
   const warmup = (q) => q.difficulty === WARMUP_DIFFICULTY;
-  const wanted = isWarmupRound(state) ? unused.filter(warmup) : unused.filter((q) => !warmup(q));
-  return wanted.length ? wanted : unused;
+
+  if (isWarmupRound(state)) {
+    const easy = unused.filter(warmup);
+    return enoughToOffer(easy) ? easy : unused;
+  }
+
+  const rest = unused.filter((q) => !warmup(q));
+  for (let floor = difficultyFloor(state); floor > WARMUP_DIFFICULTY + 1; floor--) {
+    const hard = rest.filter((q) => q.difficulty >= floor);
+    if (enoughToOffer(hard)) return hard;
+  }
+  return enoughToOffer(rest) ? rest : unused;
 }
 
 /**
@@ -195,10 +237,12 @@ export function createGame({
   seed = 'domyslne',
   startBalance = START_BALANCE,
   doorsPlan = DOORS_PLAN,
+  difficultyFloor: floorPlan = DIFFICULTY_FLOOR,
 } = {}) {
   return {
     seed: String(seed),
     doorsPlan,
+    difficultyFloor: floorPlan,
     pool: questions,
     startBalance,
     balance: startBalance,

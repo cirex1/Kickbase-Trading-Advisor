@@ -19,6 +19,7 @@ import {
   createGame,
   currentQuestion,
   WARMUP_DIFFICULTY,
+  difficultyFloor,
   doorsInRound,
   emptyDoors,
   isFinalRound,
@@ -206,6 +207,54 @@ test('rozgrzewką jest tylko pierwsza runda', () => {
       `runda ${round + 1} dostała pytanie rozgrzewkowe`,
     );
   }
+});
+
+test('im dalej w grę, tym trudniejsze pytania', () => {
+  // Gracz, który zna odpowiedź, kładzie wszystko na jedną zapadnię i nie traci
+  // ani grosza — trudność pytania jest tu jedynym źródłem ryzyka.
+  for (const seed of ['trud1', 'trud2', 'trud3', 'trud4']) {
+    let state = newGame(seed);
+    for (let round = 0; round < ROUND_COUNT; round++) {
+      const floor = difficultyFloor(state);
+      state = enterRound(state);
+      assert.ok(
+        currentQuestion(state).difficulty >= floor,
+        `${seed}, runda ${round + 1}: pytanie o trudności ${currentQuestion(state).difficulty}, ` +
+          `a próg wynosi ${floor}`,
+      );
+      state = resolve(placeRest(state, goodIndex(state)));
+      if (round < ROUND_COUNT - 1) state = advance(state);
+    }
+  }
+});
+
+test('próg trudności ustępuje, gdy pula się kończy', () => {
+  // Dwa pytania, oba łatwe, próg nie do przejścia — gra musi mimo to działać.
+  const cienka = [
+    {
+      id: 'a',
+      label: 'A',
+      category: 'Jedna',
+      difficulty: 2,
+      text: 'Pierwsze?',
+      answers: [
+        { text: 'tak', correct: true },
+        { text: 'nie', rival: true },
+        { text: 'może' },
+        { text: 'nigdy' },
+      ],
+      note: 'Wyjaśnienie na potrzeby testu.',
+    },
+    { id: 'b', label: 'B', category: 'Druga', difficulty: 2, text: 'Drugie?', answers: [
+      { text: 'tak', correct: true },
+      { text: 'nie', rival: true },
+      { text: 'może' },
+      { text: 'nigdy' },
+    ], note: 'Wyjaśnienie na potrzeby testu.' },
+  ];
+  const state = createGame({ questions: cienka, seed: 'cienko', difficultyFloor: [5] });
+  assert.equal(offeredQuestions(state).length, CATEGORY_CHOICES);
+  assert.equal(chooseOffer(state, offeredQuestions(state)[0].id).status, 'placing');
 });
 
 test('liczba zapadni maleje zgodnie z planem', () => {

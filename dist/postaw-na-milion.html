@@ -2090,6 +2090,20 @@ const ROUND_SECONDS = [60, 60, 60, 60, 60, 60, 60, 45];
  */
 const WARMUP_DIFFICULTY = 1;
 
+/**
+ * Najniższa trudność, po jaką sięga losowanie w kolejnych rundach.
+ *
+ * To nie jest drabinka: pula pozostaje jednym workiem, a `difficulty` nadal nie
+ * ustawia pytań w kolejności. Zmienia się tylko to, z jakiego wycinka worka
+ * wolno losować — bo gracz, który zna odpowiedź, kładzie wszystko na jedną
+ * zapadnię i nie traci ani grosza. Przy czterech polach trudność pytania jest
+ * jedynym źródłem ryzyka, jakie w tej grze istnieje.
+ *
+ * Gdyby próg okazał się nie do przejścia, wystarczy tu wpisać same dwójki —
+ * dobór pytań wróci do jednego wielkiego worka.
+ */
+const DIFFICULTY_FLOOR = [1, 2, 2, 3, 3, 4, 4, 5];
+
 /** Ile haseł dostaje gracz do wyboru przed pytaniem. */
 const CATEGORY_CHOICES = 2;
 
@@ -2164,17 +2178,45 @@ function isWarmupRound(state) {
   return state.roundIndex === 0;
 }
 
+/** Ile najmniej trudne pytanie może mieć w tej rundzie. */
+function difficultyFloor(state) {
+  const plan = state.difficultyFloor ?? DIFFICULTY_FLOOR;
+  return plan[Math.min(state.roundIndex, plan.length - 1)] ?? 2;
+}
+
 /**
- * Pytania dostępne w danej rundzie: jeszcze niezadane, a w pierwszej rundzie
- * dodatkowo tylko te rozgrzewkowe. Gdyby którejś puli zabrakło, bierzemy
- * cokolwiek zostało — brak pytania musiałby przerwać grę, a to gorsze niż
- * zadanie łatwiejszego.
+ * Czy ten wycinek puli wystarczy, żeby zbudować ofertę.
+ *
+ * Same dwa pytania to za mało — hasła mają pochodzić z różnych dziedzin,
+ * inaczej wybór sprowadza się do dwóch pytań o to samo.
+ */
+function enoughToOffer(list) {
+  return list.length >= CATEGORY_CHOICES && new Set(list.map((q) => q.category)).size >= CATEGORY_CHOICES;
+}
+
+/**
+ * Pytania dostępne w danej rundzie: jeszcze niezadane, a poza tym mieszczące się
+ * w progu trudności. Próg obniżamy stopniowo, dopóki nie zostanie z czego wybrać —
+ * brak pytania musiałby przerwać grę, a to gorsze niż zadanie łatwiejszego.
+ *
+ * Pierwsza runda rządzi się swoim prawem: to rozgrzewka, więc losujemy do niej
+ * wyłącznie pytania oznaczone jako łatwe.
  */
 function availableQuestions(state) {
   const unused = state.pool.filter((q) => !state.usedIds.includes(q.id));
   const warmup = (q) => q.difficulty === WARMUP_DIFFICULTY;
-  const wanted = isWarmupRound(state) ? unused.filter(warmup) : unused.filter((q) => !warmup(q));
-  return wanted.length ? wanted : unused;
+
+  if (isWarmupRound(state)) {
+    const easy = unused.filter(warmup);
+    return enoughToOffer(easy) ? easy : unused;
+  }
+
+  const rest = unused.filter((q) => !warmup(q));
+  for (let floor = difficultyFloor(state); floor > WARMUP_DIFFICULTY + 1; floor--) {
+    const hard = rest.filter((q) => q.difficulty >= floor);
+    if (enoughToOffer(hard)) return hard;
+  }
+  return enoughToOffer(rest) ? rest : unused;
 }
 
 /**
@@ -2247,10 +2289,12 @@ function createGame({
   seed = 'domyslne',
   startBalance = START_BALANCE,
   doorsPlan = DOORS_PLAN,
+  difficultyFloor: floorPlan = DIFFICULTY_FLOOR,
 } = {}) {
   return {
     seed: String(seed),
     doorsPlan,
+    difficultyFloor: floorPlan,
     pool: questions,
     startBalance,
     balance: startBalance,
@@ -2499,7 +2543,7 @@ function advance(state) {
 function isOver(state) {
   return state.status === 'over';
 }
-return { mulberry32, hashSeed, makeRng, shuffle, isWarmupRound, availableQuestions, offeredQuestions, prepareQuestion, trimToDoors, createGame, doorsInRound, isFinalRound, chooseOffer, currentQuestion, roundSeconds, unplaced, unplacedBundles, emptyDoors, canPlaceOn, canLock, place, placeBundles, take, placeRest, undo, clearBets, correctIndexes, revealOrder, resolve, advance, isOver, BUNDLE, START_BALANCE, ROUND_COUNT, GRAB_SIZES, ROUND_SECONDS, WARMUP_DIFFICULTY, CATEGORY_CHOICES, DOORS_PLAN, FINAL_DOORS };
+return { mulberry32, hashSeed, makeRng, shuffle, isWarmupRound, difficultyFloor, availableQuestions, offeredQuestions, prepareQuestion, trimToDoors, createGame, doorsInRound, isFinalRound, chooseOffer, currentQuestion, roundSeconds, unplaced, unplacedBundles, emptyDoors, canPlaceOn, canLock, place, placeBundles, take, placeRest, undo, clearBets, correctIndexes, revealOrder, resolve, advance, isOver, BUNDLE, START_BALANCE, ROUND_COUNT, GRAB_SIZES, ROUND_SECONDS, WARMUP_DIFFICULTY, DIFFICULTY_FLOOR, CATEGORY_CHOICES, DOORS_PLAN, FINAL_DOORS };
 })();
 
 /* ===== src/questions.js ===== */
@@ -5072,6 +5116,825 @@ const QUESTIONS = [
       { text: '45', spoken: 'czterdzieści pięć' },
     ],
     note: 'Dziesięć procent to 24, połowa z tego — 12; razem 36.',
+  },
+/* ===================== dopisane: trudniejsza pula ===================== */
+
+  /* --- Historia --- */
+  {
+    id: 'hist-drugi-rozbior-kto',
+    label: 'Bez jednego',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Które państwo NIE brało udziału w drugim rozbiorze Polski?',
+    answers: [
+      { text: 'Austria', correct: true },
+      { text: 'Prusy', rival: true },
+      { text: 'Rosja' },
+      { text: 'Szwecja' },
+    ],
+    note: 'W 1793 roku dzieliły się tylko Rosja i Prusy — Austria, zajęta wojną z rewolucyjną Francją, wróciła do stołu dopiero przy trzecim rozbiorze.',
+  },
+  {
+    id: 'hist-sejm-niemy',
+    label: 'Jeden dzień milczenia',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Sejm niemy obradował w roku:',
+    answers: [
+      { text: '1717', spoken: 'tysiąc siedemset siedemnaście', correct: true },
+      { text: '1652', spoken: 'tysiąc sześćset pięćdziesiąt dwa', rival: true },
+      { text: '1768', spoken: 'tysiąc siedemset sześćdziesiąt osiem' },
+      { text: '1791', spoken: 'tysiąc siedemset dziewięćdziesiąt jeden' },
+    ],
+    note: 'Trwał jeden dzień i posłowie nie zabierali głosu — żeby nikt nie zdążył go zerwać. Rok 1652 to pierwsze liberum veto.',
+  },
+  {
+    id: 'hist-liberum-veto',
+    label: 'Nie pozwalam',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Pierwsze zerwanie sejmu przez liberum veto nastąpiło w roku:',
+    answers: [
+      { text: '1652', spoken: 'tysiąc sześćset pięćdziesiąt dwa', correct: true },
+      { text: '1573', spoken: 'tysiąc pięćset siedemdziesiąt trzy', rival: true },
+      { text: '1717', spoken: 'tysiąc siedemset siedemnaście' },
+      { text: '1764', spoken: 'tysiąc siedemset sześćdziesiąt cztery' },
+    ],
+    note: 'Zrobił to poseł Władysław Siciński. Rok 1573 to konfederacja warszawska, czyli gwarancja pokoju religijnego.',
+  },
+  {
+    id: 'hist-hold-pruski',
+    label: 'Klęczący na rynku',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Hołd pruski złożono w roku:',
+    answers: [
+      { text: '1525', spoken: 'tysiąc pięćset dwadzieścia pięć', correct: true },
+      { text: '1466', spoken: 'tysiąc czterysta sześćdziesiąt sześć', rival: true },
+      { text: '1569', spoken: 'tysiąc pięćset sześćdziesiąt dziewięć' },
+      { text: '1410', spoken: 'tysiąc czterysta dziesięć' },
+    ],
+    note: 'Albrecht Hohenzollern uklęknął przed Zygmuntem Starym na krakowskim rynku. Rok 1466 to drugi pokój toruński, a 1569 — unia lubelska.',
+  },
+  {
+    id: 'hist-oliwa',
+    label: 'Koniec zalewu',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Potop szwedzki zakończył:',
+    answers: [
+      { text: 'pokój w Oliwie', correct: true },
+      { text: 'rozejm w Sztumskiej Wsi', rival: true },
+      { text: 'pokój w Buczaczu' },
+      { text: 'rozejm w Andruszowie' },
+    ],
+    note: 'Oliwa, rok 1660. Sztumska Wieś kończyła wcześniejszą wojnę ze Szwecją, Buczacz — wojnę z Turcją, Andruszów — z Rosją.',
+  },
+  {
+    id: 'hist-konfederacja-barska',
+    label: 'Pierwsze powstanie',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Konfederacja barska zawiązała się w roku:',
+    answers: [
+      { text: '1768', spoken: 'tysiąc siedemset sześćdziesiąt osiem', correct: true },
+      { text: '1792', spoken: 'tysiąc siedemset dziewięćdziesiąt dwa', rival: true },
+      { text: '1733', spoken: 'tysiąc siedemset trzydzieści trzy' },
+      { text: '1794', spoken: 'tysiąc siedemset dziewięćdziesiąt cztery' },
+    ],
+    note: 'Bywa nazywana pierwszym polskim powstaniem. Rok 1792 to konfederacja targowicka, a 1794 — insurekcja kościuszkowska.',
+  },
+  {
+    id: 'hist-ksiestwo-warszawskie',
+    label: 'Z łaski cesarza',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Księstwo Warszawskie powstało w roku:',
+    answers: [
+      { text: '1807', spoken: 'tysiąc osiemset siedem', correct: true },
+      { text: '1815', spoken: 'tysiąc osiemset piętnaście', rival: true },
+      { text: '1797', spoken: 'tysiąc siedemset dziewięćdziesiąt siedem' },
+      { text: '1812', spoken: 'tysiąc osiemset dwanaście' },
+    ],
+    note: 'Utworzył je Napoleon po pokoju w Tylży. W 1815 roku, po jego klęsce, kongres wiedeński zastąpił Księstwo Królestwem Polskim.',
+  },
+  {
+    id: 'hist-noc-listopadowa',
+    label: 'Belweder',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Powstanie listopadowe wybuchło w roku:',
+    answers: [
+      { text: '1830', spoken: 'tysiąc osiemset trzydzieści', correct: true },
+      { text: '1831', spoken: 'tysiąc osiemset trzydzieści jeden', rival: true },
+      { text: '1846', spoken: 'tysiąc osiemset czterdzieści sześć' },
+      { text: '1863', spoken: 'tysiąc osiemset sześćdziesiąt trzy' },
+    ],
+    note: 'Noc z 29 na 30 listopada 1830 roku; walki toczyły się przez cały 1831. Rok 1863 to powstanie styczniowe.',
+  },
+  {
+    id: 'hist-konstytucja-marcowa',
+    label: 'Dwie ustawy',
+    category: 'Historia',
+    difficulty: 5,
+    text: 'Konstytucję marcową uchwalono w roku:',
+    answers: [
+      { text: '1921', spoken: 'tysiąc dziewięćset dwadzieścia jeden', correct: true },
+      { text: '1935', spoken: 'tysiąc dziewięćset trzydzieści pięć', rival: true },
+      { text: '1918', spoken: 'tysiąc dziewięćset osiemnaście' },
+      { text: '1926', spoken: 'tysiąc dziewięćset dwadzieścia sześć' },
+    ],
+    note: 'Marcowa dawała władzę sejmowi, kwietniowa z 1935 roku — prezydentowi. Rok 1926 to przewrót majowy.',
+  },
+  {
+    id: 'hist-wielka-trojka',
+    label: 'Trzy spotkania',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Która konferencja Wielkiej Trójki odbyła się jako pierwsza?',
+    answers: [
+      { text: 'w Teheranie', correct: true },
+      { text: 'w Jałcie', rival: true },
+      { text: 'w Poczdamie' },
+      { text: 'w Casablance' },
+    ],
+    note: 'Teheran — przełom listopada i grudnia 1943, Jałta — luty 1945, Poczdam — lato 1945. W Casablance spotkali się tylko Roosevelt i Churchill.',
+  },
+  {
+    id: 'hist-wielka-emigracja',
+    label: 'Paryż i Bruksela',
+    category: 'Historia',
+    difficulty: 4,
+    text: 'Wielka Emigracja była następstwem powstania:',
+    answers: [
+      { text: 'listopadowego', correct: true },
+      { text: 'styczniowego', rival: true },
+      { text: 'krakowskiego' },
+      { text: 'wielkopolskiego' },
+    ],
+    note: 'Po klęsce 1831 roku wyjechało kilkanaście tysięcy osób, wśród nich Mickiewicz, Słowacki i Chopin.',
+  },
+
+  /* --- Geografia --- */
+  {
+    id: 'geo-najdluzsza-granica',
+    label: 'Miedza po drugiej stronie',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Z którym państwem Polska ma najdłuższą granicę lądową?',
+    answers: [
+      { text: 'Czechy', correct: true },
+      { text: 'Słowacja', rival: true },
+      { text: 'Niemcy' },
+      { text: 'Ukraina' },
+    ],
+    note: 'Blisko 800 kilometrów, więcej niż ze Słowacją i o połowę więcej niż z Niemcami.',
+    timeless: 'długości granic zmieniają się razem z granicami, a te stoją od 1945 roku',
+  },
+  {
+    id: 'geo-aconcagua',
+    label: 'Dach Andów',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Najwyższym szczytem Ameryki Południowej jest:',
+    answers: [
+      { text: 'Aconcagua', correct: true },
+      { text: 'Chimborazo', rival: true },
+      { text: 'Huascarán' },
+      { text: 'Cotopaxi' },
+    ],
+    note: 'Aconcagua ma blisko 6961 metrów. Chimborazo bywa nazywany najwyższym, ale tylko licząc od środka Ziemi — bo leży przy równiku.',
+    timeless: 'kolejność szczytów nie zmienia się z rocznika na rocznik',
+  },
+  {
+    id: 'geo-slowenia',
+    label: 'Wąski dostęp',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Które z tych państw ma dostęp do morza?',
+    answers: [
+      { text: 'Słowenia', correct: true },
+      { text: 'Austria', rival: true },
+      { text: 'Węgry' },
+      { text: 'Czechy' },
+    ],
+    note: 'Słoweńskie wybrzeże Adriatyku liczy zaledwie 46 kilometrów, ale jest. Austria straciła swoje po pierwszej wojnie światowej.',
+  },
+  {
+    id: 'geo-zwrotnik-raka',
+    label: 'Linia na mapie',
+    category: 'Geografia',
+    difficulty: 5,
+    text: 'Przez które z tych państw przechodzi zwrotnik Raka?',
+    answers: [
+      { text: 'Egipt', correct: true },
+      { text: 'Turcja', rival: true },
+      { text: 'Grecja' },
+      { text: 'Hiszpania' },
+    ],
+    note: 'Zwrotnik biegnie na wysokości 23,5 stopnia — przez południowy Egipt, tuż obok Asuanu. Turcja leży kilkanaście stopni dalej na północ.',
+  },
+  {
+    id: 'geo-salto-angel',
+    label: 'Kilometr w dół',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Najwyższym wodospadem świata jest:',
+    answers: [
+      { text: 'Salto Ángel', correct: true },
+      { text: 'Niagara', rival: true },
+      { text: 'Wodospady Wiktorii' },
+      { text: 'Iguazú' },
+    ],
+    note: 'Wenezuelski Salto Ángel spada z 979 metrów. Niagara ma niecałe pięćdziesiąt — słynie z rozmachu, nie z wysokości.',
+    asOf: 2024,
+    source: 'Guinness World Records',
+  },
+  {
+    id: 'geo-morze-martwe',
+    label: 'Najgłębszy ląd',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Najniżej położonym miejscem na lądzie jest brzeg:',
+    answers: [
+      { text: 'Morza Martwego', correct: true },
+      { text: 'Morza Kaspijskiego', rival: true },
+      { text: 'Doliny Śmierci' },
+      { text: 'Jeziora Bajkał' },
+    ],
+    note: 'Około 430 metrów poniżej poziomu morza. Kaspijskie leży 28 metrów niżej niż ocean, Dolina Śmierci — 86.',
+    timeless: 'to sprawa geologii, a nie rocznika',
+  },
+  {
+    id: 'geo-watykan',
+    label: 'Państwo za murem',
+    category: 'Geografia',
+    difficulty: 3,
+    text: 'Najmniejszym państwem świata jest:',
+    answers: [
+      { text: 'Watykan', correct: true },
+      { text: 'Monako', rival: true },
+      { text: 'San Marino' },
+      { text: 'Liechtenstein' },
+    ],
+    note: 'Watykan zajmuje 0,44 kilometra kwadratowego — mniej niż warszawskie Łazienki. Monako, drugie w kolejności, jest cztery razy większe.',
+    timeless: 'granice tych państw stoją od stu lat',
+  },
+  {
+    id: 'geo-bering',
+    label: 'Dwa lądy, jedna woda',
+    category: 'Geografia',
+    difficulty: 4,
+    text: 'Cieśnina Beringa oddziela Azję od:',
+    answers: [
+      { text: 'Ameryki Północnej', correct: true },
+      { text: 'Australii', rival: true },
+      { text: 'Antarktydy' },
+      { text: 'Europy' },
+    ],
+    note: 'Osiemdziesiąt kilometrów między Rosją a Alaską. W środku leżą dwie wyspy Diomedesa — jedna rosyjska, druga amerykańska.',
+  },
+
+  /* --- Nauka --- */
+  {
+    id: 'nauka-skorupa-ziemska',
+    label: 'Z czego jest grunt',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Którego pierwiastka jest najwięcej w skorupie ziemskiej?',
+    answers: [
+      { text: 'tlenu', correct: true },
+      { text: 'krzemu', rival: true },
+      { text: 'żelaza' },
+      { text: 'glinu' },
+    ],
+    note: 'Tlen to blisko połowa masy skorupy — siedzi związany w krzemianach. Krzem jest drugi, z około jedną czwartą.',
+    timeless: 'skład skorupy nie zmienia się z rocznika na rocznik',
+  },
+  {
+    id: 'nauka-wszechswiat-pierwiastek',
+    label: 'Z czego jest reszta',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Którego pierwiastka jest najwięcej we Wszechświecie?',
+    answers: [
+      { text: 'wodoru', correct: true },
+      { text: 'helu', rival: true },
+      { text: 'tlenu' },
+      { text: 'węgla' },
+    ],
+    note: 'Wodór to około trzech czwartych masy zwykłej materii, hel prawie cała reszta. Wszystko inne to margines.',
+    timeless: 'skład Wszechświata nie ma rocznika',
+  },
+  {
+    id: 'nauka-avogadro',
+    label: 'Liczba z chemii',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Ile cząsteczek liczy jeden mol substancji?',
+    answers: [
+      { text: 'około 6 × 10²³', spoken: 'około sześć razy dziesięć do dwudziestej trzeciej', correct: true },
+      { text: 'około 3 × 10⁸', spoken: 'około trzy razy dziesięć do ósmej', rival: true },
+      { text: 'około 1 × 10⁶', spoken: 'około milion' },
+      { text: 'około 9,8 × 10¹', spoken: 'około dziewięćdziesiąt osiem' },
+    ],
+    note: 'To liczba Avogadra. Trzy razy dziesięć do ósmej to prędkość światła w metrach na sekundę.',
+  },
+  {
+    id: 'nauka-cisnienie',
+    label: 'Słupek rtęci',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Normalne ciśnienie atmosferyczne na poziomie morza wynosi około:',
+    answers: [
+      { text: '1013 hPa', spoken: 'tysiąc trzynaście hektopaskali', correct: true },
+      { text: '1000 hPa', spoken: 'tysiąc hektopaskali', rival: true },
+      { text: '760 hPa', spoken: 'siedemset sześćdziesiąt hektopaskali' },
+      { text: '1200 hPa', spoken: 'tysiąc dwieście hektopaskali' },
+    ],
+    note: 'Liczba 760 też jest prawdziwa, ale w innych jednostkach — to wysokość słupka rtęci w milimetrach.',
+  },
+  {
+    id: 'nauka-krwinki',
+    label: 'Cztery miesiące',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Ile mniej więcej żyje czerwona krwinka?',
+    answers: [
+      { text: '120 dni', spoken: 'sto dwadzieścia dni', correct: true },
+      { text: '30 dni', spoken: 'trzydzieści dni', rival: true },
+      { text: '7 dni', spoken: 'siedem dni' },
+      { text: '2 lata', spoken: 'dwa lata' },
+    ],
+    note: 'Po około czterech miesiącach zużyte krwinki wyłapuje śledziona. Szpik produkuje w tym czasie kolejne dwa miliony na sekundę.',
+  },
+  {
+    id: 'nauka-dna-pary',
+    label: 'Kto z kim',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'W nici DNA adenina łączy się z:',
+    answers: [
+      { text: 'tyminą', correct: true },
+      { text: 'cytozyną', rival: true },
+      { text: 'guaniną' },
+      { text: 'uracylem' },
+    ],
+    note: 'Pary są zawsze te same: adenina z tyminą, cytozyna z guaniną. Uracyl zastępuje tyminę dopiero w RNA.',
+  },
+  {
+    id: 'nauka-predkosc-dzwieku',
+    label: 'Po błyskawicy',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Prędkość dźwięku w powietrzu wynosi około:',
+    answers: [
+      { text: '340 m/s', spoken: 'trzysta czterdzieści metrów na sekundę', correct: true },
+      { text: '1500 m/s', spoken: 'tysiąc pięćset metrów na sekundę', rival: true },
+      { text: '30 m/s', spoken: 'trzydzieści metrów na sekundę' },
+      { text: '3000 m/s', spoken: 'trzy tysiące metrów na sekundę' },
+    ],
+    note: 'Tysiąc pięćset metrów na sekundę to prędkość dźwięku w wodzie — w gęstszym ośrodku fala biegnie szybciej.',
+  },
+  {
+    id: 'nauka-antymon',
+    label: 'Nie to, co brzmi',
+    category: 'Nauka',
+    difficulty: 5,
+    text: 'Pierwiastek o symbolu „Sb” to:',
+    answers: [
+      { text: 'antymon', correct: true },
+      { text: 'srebro', rival: true },
+      { text: 'stront' },
+      { text: 'skand' },
+    ],
+    note: 'Symbol pochodzi od łacińskiego stibium. Srebro to Ag, stront Sr, a skand Sc.',
+  },
+  {
+    id: 'nauka-mitochondria',
+    label: 'Elektrownia',
+    category: 'Nauka',
+    difficulty: 4,
+    text: 'Za wytwarzanie energii w komórce odpowiadają:',
+    answers: [
+      { text: 'mitochondria', correct: true },
+      { text: 'rybosomy', rival: true },
+      { text: 'lizosomy' },
+      { text: 'aparat Golgiego' },
+    ],
+    note: 'Rybosomy składają białka, lizosomy trawią odpady, a aparat Golgiego pakuje i wysyła.',
+  },
+
+  /* --- Technologia --- */
+  {
+    id: 'tech-tomlinson',
+    label: 'Małpa w adresie',
+    category: 'Technologia',
+    difficulty: 5,
+    text: 'Kto wysłał pierwszą wiadomość e-mail i wprowadził znak „@”?',
+    answers: [
+      { text: 'Ray Tomlinson', correct: true },
+      { text: 'Vint Cerf', rival: true },
+      { text: 'Tim Berners-Lee' },
+      { text: 'Robert Kahn' },
+    ],
+    note: 'Rok 1971. Tomlinson wybrał „@”, bo był to jedyny znak na klawiaturze, który nie mógł wystąpić w nazwie użytkownika.',
+  },
+  {
+    id: 'tech-eniac',
+    label: 'Trzydzieści ton',
+    category: 'Technologia',
+    difficulty: 5,
+    text: 'Pierwszym elektronicznym komputerem ogólnego przeznaczenia był:',
+    answers: [
+      { text: 'ENIAC', correct: true },
+      { text: 'Colossus', rival: true },
+      { text: 'UNIVAC' },
+      { text: 'Z3', spoken: 'zet trzy' },
+    ],
+    note: 'Colossus powstał wcześniej, ale służył wyłącznie do łamania szyfrów. Z3 był elektromechaniczny, a UNIVAC przyszedł po ENIAC-u.',
+  },
+  {
+    id: 'tech-enigma',
+    label: 'Trzej z Poznania',
+    category: 'Technologia',
+    difficulty: 4,
+    text: 'Kto jako pierwszy złamał szyfr Enigmy?',
+    answers: [
+      { text: 'polscy matematycy z Biura Szyfrów', correct: true },
+      { text: 'Alan Turing w Bletchley Park', rival: true },
+      { text: 'wywiad francuski' },
+      { text: 'amerykańscy kryptolodzy z Arlington' },
+    ],
+    note: 'Marian Rejewski, Jerzy Różycki i Henryk Zygalski złamali Enigmę w 1932 roku i przekazali metodę aliantom siedem tygodni przed wybuchem wojny.',
+  },
+
+  /* --- Język polski --- */
+  {
+    id: 'pol-w-kazdym-badz',
+    label: 'Zlepek',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Który zwrot jest błędem językowym?',
+    answers: [
+      { text: 'w każdym bądź razie', correct: true },
+      { text: 'bądź co bądź', rival: true },
+      { text: 'w każdym razie' },
+      { text: 'tak czy owak' },
+    ],
+    note: 'To skrzyżowanie dwóch poprawnych wyrażeń: „w każdym razie” i „bądź co bądź”. Osobno są w porządku, razem nie znaczą nic.',
+  },
+  {
+    id: 'pol-eufemizm',
+    label: 'Łagodniej',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Powiedzenie „odszedł” zamiast „umarł” to:',
+    answers: [
+      { text: 'eufemizm', correct: true },
+      { text: 'peryfraza', rival: true },
+      { text: 'metonimia' },
+      { text: 'hiperbola' },
+    ],
+    note: 'Eufemizm łagodzi to, co przykre. Peryfraza tylko opisuje rzecz zamiast ją nazwać — „stolica Francji” zamiast „Paryż”.',
+  },
+  {
+    id: 'pol-homonim',
+    label: 'Dwa znaczenia',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Wyraz „zamek” — budowla i część drzwi — to przykład:',
+    answers: [
+      { text: 'homonimu', correct: true },
+      { text: 'synonimu', rival: true },
+      { text: 'antonimu' },
+      { text: 'archaizmu' },
+    ],
+    note: 'Homonimy brzmią tak samo, a znaczą co innego. Synonimy odwrotnie: brzmią różnie, a znaczą to samo.',
+  },
+  {
+    id: 'pol-stajnia-augiasza',
+    label: 'Trzydzieści lat brudu',
+    category: 'Język polski',
+    difficulty: 5,
+    text: 'Co znaczy „stajnia Augiasza”?',
+    answers: [
+      { text: 'Zaniedbanie, które trzeba uprzątnąć', correct: true },
+      { text: 'Bogactwo zdobyte nieuczciwie', rival: true },
+      { text: 'Miejsce, z którego nie ma wyjścia' },
+      { text: 'Praca bez końca' },
+    ],
+    note: 'Herakles wyczyścił ją w jeden dzień, przekierowując do niej rzekę. Praca bez końca to raczej syzyfowa.',
+  },
+  {
+    id: 'pol-rubikon',
+    label: 'Rzeka za plecami',
+    category: 'Język polski',
+    difficulty: 4,
+    text: 'Kto „przekracza Rubikon”?',
+    answers: [
+      { text: 'Ten, kto podejmuje nieodwracalną decyzję', correct: true },
+      { text: 'Ten, kto przekracza granicę przyzwoitości', rival: true },
+      { text: 'Ten, kto zaczyna wszystko od nowa' },
+      { text: 'Ten, kto ucieka przed odpowiedzialnością' },
+    ],
+    note: 'Cezar przekroczył tę rzekę z wojskiem wbrew prawu — po tym kroku nie było już powrotu do wcześniejszego układu.',
+  },
+
+  /* --- Literatura --- */
+  {
+    id: 'lit-reymont-nobel',
+    label: 'Cztery pory roku',
+    category: 'Literatura',
+    difficulty: 4,
+    text: 'Za którą powieść Nobla otrzymał Władysław Reymont?',
+    answers: [
+      { text: '„Chłopi”', spoken: 'Chłopi', correct: true },
+      { text: '„Ziemia obiecana”', spoken: 'Ziemia obiecana', rival: true },
+      { text: '„Komediantka”', spoken: 'Komediantka' },
+      { text: '„Fermenty”', spoken: 'Fermenty' },
+    ],
+    note: 'Nagroda z 1924 roku dotyczyła wprost „Chłopów”. „Ziemia obiecana” jest dziś głośniejsza dzięki filmowi Wajdy.',
+  },
+  {
+    id: 'lit-nad-niemnem',
+    label: 'Nad wodą, ale nie o wodzie',
+    category: 'Literatura',
+    difficulty: 4,
+    text: 'Autorką powieści „Nad Niemnem” jest:',
+    answers: [
+      { text: 'Eliza Orzeszkowa', correct: true },
+      { text: 'Maria Konopnicka', rival: true },
+      { text: 'Maria Dąbrowska' },
+      { text: 'Gabriela Zapolska' },
+    ],
+    note: 'Konopnicka pisała przede wszystkim wiersze i „Rotę”. Dąbrowska jest autorką „Nocy i dni”, Zapolska — „Moralności pani Dulskiej”.',
+  },
+  {
+    id: 'lit-ferdydurke',
+    label: 'Upupiony',
+    category: 'Literatura',
+    difficulty: 5,
+    text: 'Powieść „Ferdydurke” napisał:',
+    answers: [
+      { text: 'Witold Gombrowicz', correct: true },
+      { text: 'Stanisław Ignacy Witkiewicz', spoken: 'Witkacy', rival: true },
+      { text: 'Bruno Schulz' },
+      { text: 'Juliusz Kaden-Bandrowski' },
+    ],
+    note: 'Cała trójka — Gombrowicz, Witkacy i Schulz — bywa wymieniana jednym tchem, ale „Ferdydurke” z 1937 roku ma tylko jednego autora.',
+  },
+  {
+    id: 'lit-mistrz-malgorzata',
+    label: 'Kot i diabeł',
+    category: 'Literatura',
+    difficulty: 4,
+    text: 'Autorem „Mistrza i Małgorzaty” jest:',
+    answers: [
+      { text: 'Michaił Bułhakow', correct: true },
+      { text: 'Fiodor Dostojewski', rival: true },
+      { text: 'Nikołaj Gogol' },
+      { text: 'Michaił Lermontow' },
+    ],
+    note: 'Powieść powstawała w latach trzydziestych, a ukazała się dopiero ćwierć wieku po śmierci autora.',
+  },
+  {
+    id: 'lit-treny',
+    label: 'Ojciec przy grobie',
+    category: 'Literatura',
+    difficulty: 4,
+    text: '„Treny” Jan Kochanowski napisał po śmierci:',
+    answers: [
+      { text: 'córki', correct: true },
+      { text: 'żony', rival: true },
+      { text: 'syna' },
+      { text: 'przyjaciela' },
+    ],
+    note: 'Urszulka zmarła, mając niecałe trzy lata. Cykl dziewiętnastu trenów jest jednym z pierwszych w Europie utworów o śmierci dziecka.',
+  },
+  {
+    id: 'lit-krągi-piekla',
+    label: 'W dół po spirali',
+    category: 'Literatura',
+    difficulty: 5,
+    text: 'Ile kręgów ma piekło w „Boskiej komedii”?',
+    answers: [
+      { text: '9', spoken: 'dziewięć', correct: true },
+      { text: '7', spoken: 'siedem', rival: true },
+      { text: '12', spoken: 'dwanaście' },
+      { text: '3', spoken: 'trzy' },
+    ],
+    note: 'Dziewięć kręgów piekła, dziewięć tarasów czyśćca i dziewięć nieb. Siedem to liczba grzechów głównych, stąd pomyłka.',
+  },
+
+  /* --- Kultura, film, muzyka --- */
+  {
+    id: 'kult-globe',
+    label: 'Okrągły teatr',
+    category: 'Kultura',
+    difficulty: 4,
+    text: 'Teatr, w którym wystawiano sztuki Szekspira, nazywał się:',
+    answers: [
+      { text: 'The Globe', spoken: 'The Globe', correct: true },
+      { text: 'Drury Lane', spoken: 'Drury Lane', rival: true },
+      { text: 'Old Vic', spoken: 'Old Vic' },
+      { text: 'Covent Garden', spoken: 'Covent Garden' },
+    ],
+    note: 'Spłonął w 1613 roku od wystrzału armatniego podczas przedstawienia. Pozostałe teatry powstały ponad sto lat później.',
+  },
+  {
+    id: 'muz-requiem',
+    label: 'Niedokończone',
+    category: 'Muzyka',
+    difficulty: 5,
+    text: 'Requiem Mozarta dokończył po jego śmierci:',
+    answers: [
+      { text: 'Franz Xaver Süssmayr', correct: true },
+      { text: 'Antonio Salieri', rival: true },
+      { text: 'Joseph Haydn' },
+      { text: 'Ludwig van Beethoven' },
+    ],
+    note: 'Süssmayr był uczniem Mozarta. Salieri obrósł legendą dzięki sztuce i filmowi „Amadeusz”, ale z Requiem nie miał nic wspólnego.',
+  },
+  {
+    id: 'muz-oginski',
+    label: 'Pożegnanie',
+    category: 'Muzyka',
+    difficulty: 4,
+    text: 'Poloneza „Pożegnanie Ojczyzny” skomponował:',
+    answers: [
+      { text: 'Michał Kleofas Ogiński', correct: true },
+      { text: 'Fryderyk Chopin', rival: true },
+      { text: 'Stanisław Moniuszko' },
+      { text: 'Henryk Wieniawski' },
+    ],
+    note: 'Ogiński napisał go pod koniec XVIII wieku, gdy po insurekcji kościuszkowskiej musiał opuścić kraj.',
+  },
+  {
+    id: 'muz-kind-of-blue',
+    label: 'Odcień błękitu',
+    category: 'Muzyka',
+    difficulty: 5,
+    text: 'Album „Kind of Blue” nagrał:',
+    answers: [
+      { text: 'Miles Davis', correct: true },
+      { text: 'John Coltrane', rival: true },
+      { text: 'Duke Ellington' },
+      { text: 'Louis Armstrong' },
+    ],
+    note: 'Coltrane grał na tej płycie na saksofonie, ale to album Davisa — i najlepiej sprzedająca się płyta jazzowa w historii.',
+  },
+  {
+    id: 'film-ford-oscary',
+    label: 'Cztery razy',
+    category: 'Film',
+    difficulty: 5,
+    text: 'Rekordową liczbę Oscarów za reżyserię zdobył:',
+    answers: [
+      { text: 'John Ford', correct: true },
+      { text: 'Steven Spielberg', rival: true },
+      { text: 'Martin Scorsese' },
+      { text: 'Alfred Hitchcock' },
+    ],
+    note: 'Cztery statuetki Forda wobec dwóch Spielberga. Hitchcock, pięć razy nominowany, nie dostał żadnej.',
+    asOf: 2025,
+    source: 'Amerykańska Akademia Filmowa',
+  },
+
+  /* --- Sport --- */
+  {
+    id: 'sport-roland-garros',
+    label: 'Ceglany pył',
+    category: 'Sport',
+    difficulty: 3,
+    text: 'Który turniej Wielkiego Szlema rozgrywa się na kortach ziemnych?',
+    answers: [
+      { text: 'Roland Garros', correct: true },
+      { text: 'Wimbledon', rival: true },
+      { text: 'US Open' },
+      { text: 'Australian Open' },
+    ],
+    note: 'Wimbledon jako jedyny gra się na trawie, a oba pozostałe — na nawierzchni twardej.',
+  },
+  {
+    id: 'sport-f1-tytuly',
+    label: 'Siedem razy',
+    category: 'Sport',
+    difficulty: 4,
+    text: 'Rekordowa liczba mistrzostw świata Formuły 1 wynosi:',
+    spoken: 'Rekordowa liczba mistrzostw świata Formuły jeden wynosi:',
+    answers: [
+      { text: '7', spoken: 'siedem', correct: true },
+      { text: '5', spoken: 'pięć', rival: true },
+      { text: '9', spoken: 'dziewięć' },
+      { text: '4', spoken: 'cztery' },
+    ],
+    note: 'Po siedem tytułów mają Michael Schumacher i Lewis Hamilton. Pięć zdobył Juan Manuel Fangio — i przez pół wieku to był rekord.',
+    asOf: 2025,
+    source: 'FIA',
+  },
+  {
+    id: 'sport-24-sekundy',
+    label: 'Zegar akcji',
+    category: 'Sport',
+    difficulty: 4,
+    text: 'Ile sekund ma drużyna na rozegranie akcji w koszykówce?',
+    answers: [
+      { text: '24', spoken: 'dwadzieścia cztery', correct: true },
+      { text: '30', spoken: 'trzydzieści', rival: true },
+      { text: '20', spoken: 'dwadzieścia' },
+      { text: '35', spoken: 'trzydzieści pięć' },
+    ],
+    note: 'Trzydzieści sekund obowiązywało w Europie do 2000 roku, a w koszykówce akademickiej w Stanach jeszcze dłużej.',
+  },
+  {
+    id: 'sport-lato-1974',
+    label: 'Siedem goli',
+    category: 'Sport',
+    difficulty: 5,
+    text: 'Królem strzelców mistrzostw świata w 1974 roku został:',
+    answers: [
+      { text: 'Grzegorz Lato', correct: true },
+      { text: 'Kazimierz Deyna', rival: true },
+      { text: 'Andrzej Szarmach' },
+      { text: 'Gerd Müller' },
+    ],
+    note: 'Siedem bramek Laty na turnieju, w którym Polska zajęła trzecie miejsce. Szarmach strzelił pięć.',
+  },
+
+  /* --- Kuchnia --- */
+  {
+    id: 'kuch-tiramisu',
+    label: 'Podnieś mnie',
+    category: 'Kuchnia',
+    difficulty: 4,
+    text: 'Podstawą kremu w tiramisu jest ser:',
+    answers: [
+      { text: 'mascarpone', correct: true },
+      { text: 'ricotta', rival: true },
+      { text: 'gorgonzola' },
+      { text: 'pecorino' },
+    ],
+    note: 'Ricottę bywa się dokłada dla lekkości, ale klasyczny przepis zna tylko mascarpone.',
+  },
+  {
+    id: 'kuch-paella',
+    label: 'Płaska patelnia',
+    category: 'Kuchnia',
+    difficulty: 4,
+    text: 'Paella pochodzi z hiszpańskiego regionu:',
+    answers: [
+      { text: 'Walencja', correct: true },
+      { text: 'Andaluzja', rival: true },
+      { text: 'Katalonia' },
+      { text: 'Kastylia' },
+    ],
+    note: 'Nazwa pochodzi od patelni, a nie od składników. Z Andaluzji wywodzi się chłodnik gazpacho.',
+  },
+  {
+    id: 'kuch-beszamel',
+    label: 'Biały sos',
+    category: 'Kuchnia',
+    difficulty: 5,
+    text: 'Sos beszamelowy powstaje z zasmażki i:',
+    answers: [
+      { text: 'mleka', correct: true },
+      { text: 'bulionu', rival: true },
+      { text: 'śmietany' },
+      { text: 'wina' },
+    ],
+    note: 'Z zasmażki i bulionu robi się sos velouté — to jeden z pięciu sosów podstawowych kuchni francuskiej, tak samo jak beszamel.',
+  },
+
+  /* --- Liczby --- */
+  {
+    id: 'liczby-silnia',
+    label: 'Wykrzyknik',
+    category: 'Liczby',
+    difficulty: 4,
+    text: 'Ile wynosi 5! (pięć silnia)?',
+    spoken: 'Ile wynosi pięć silnia?',
+    answers: [
+      { text: '120', spoken: 'sto dwadzieścia', correct: true },
+      { text: '25', spoken: 'dwadzieścia pięć', rival: true },
+      { text: '60', spoken: 'sześćdziesiąt' },
+      { text: '15', spoken: 'piętnaście' },
+    ],
+    note: 'Silnia mnoży wszystkie liczby od jednego do pięciu. Piętnaście to ich suma, a dwadzieścia pięć — kwadrat.',
+  },
+  {
+    id: 'liczby-e',
+    label: 'Druga stała',
+    category: 'Liczby',
+    difficulty: 5,
+    text: 'Liczba e wynosi w przybliżeniu:',
+    answers: [
+      { text: '2,72', spoken: 'dwa i siedemdziesiąt dwie setne', correct: true },
+      { text: '3,14', spoken: 'trzy i czternaście setnych', rival: true },
+      { text: '1,62', spoken: 'jeden i sześćdziesiąt dwie setne' },
+      { text: '1,41', spoken: 'jeden i czterdzieści jeden setnych' },
+    ],
+    note: 'Trzy i czternaście setnych to liczba pi, jeden i sześćdziesiąt dwie setne — złoty podział, a jeden i czterdzieści jeden setnych — pierwiastek z dwóch.',
   },
 ];
 return { QUESTIONS };
